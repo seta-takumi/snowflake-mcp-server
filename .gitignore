@@ -74,5 +74,8 @@ dmypy.json
 # Ruff stuff:
 .ruff_cache/
 
-
+# General
+*.log
 .DS_Store
+.vscode/
+.claude/
