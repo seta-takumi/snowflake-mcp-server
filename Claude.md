@@ -40,9 +40,10 @@ openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
 
 # 公開鍵を生成
 openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
-
-# Snowflakeユーザーに公開鍵を設定
-# ALTER USER your_username SET RSA_PUBLIC_KEY='<公開鍵の内容>';
+```
+```sql
+-- Snowflakeユーザーに公開鍵を設定
+ALTER USER your_username SET RSA_PUBLIC_KEY='<公開鍵の内容>';
 ```
 
 環境変数の設定：
@@ -175,10 +176,10 @@ def test_snowflake_query_execution():
     # Given: 前提条件
     connection = SnowflakeConnection()
     query = "SELECT 1"
-    
+
     # When: 実行
     result = await connection.execute_query(query)
-    
+
     # Then: 検証
     assert len(result) == 1
 ```
@@ -233,13 +234,13 @@ class SnowflakeMCPServer:
         self.connection = SnowflakeConnection()
         self.server = Server("snowflake-mcp")
         self._setup_tools()
-    
+
     def _is_read_only_query(self, query: str) -> bool:
         """クエリが読み取り専用かチェック"""
         query_upper = query.strip().upper()
         allowed_statements = ['SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN']
         return any(query_upper.startswith(stmt) for stmt in allowed_statements)
-    
+
     def _setup_tools(self) -> None:
         """MCPツールの設定"""
         @self.server.tool(
@@ -252,7 +253,7 @@ class SnowflakeMCPServer:
                     type="text",
                     text="Error: Only read-only queries are allowed"
                 )]
-            
+
             try:
                 results = await self.connection.execute_query(sql)
                 return [TextContent(
@@ -264,7 +265,7 @@ class SnowflakeMCPServer:
                     type="text",
                     text=f"Query execution failed: {str(e)}"
                 )]
-    
+
     async def run(self) -> None:
         """サーバーの実行"""
         await self.server.run()
@@ -282,7 +283,7 @@ import snowflake.connector
 class SnowflakeConnection:
     def __init__(self):
         self.connection: Optional[snowflake.connector.SnowflakeConnection] = None
-    
+
     def _get_connection_params(self) -> Dict[str, Any]:
         """セキュアな接続パラメータの取得"""
         params = {
@@ -293,7 +294,7 @@ class SnowflakeConnection:
             'warehouse': os.getenv('SNOWFLAKE_WAREHOUSE'),
             'role': os.getenv('SNOWFLAKE_ROLE'),
         }
-        
+
         # キーペア認証
         private_key_path = os.getenv('SNOWFLAKE_PRIVATE_KEY_PATH')
         if private_key_path:
@@ -302,32 +303,32 @@ class SnowflakeConnection:
                     key_file.read(),
                     password=os.getenv('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '').encode() or None,
                 )
-            
+
             pkb = private_key.private_bytes(
                 encoding=serialization.Encoding.DER,
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=serialization.NoEncryption()
             )
             params['private_key'] = pkb
-        
+
         # OAuth認証（代替）
         oauth_token = os.getenv('SNOWFLAKE_OAUTH_TOKEN')
         if oauth_token:
             params['token'] = oauth_token
             params['authenticator'] = 'oauth'
-        
+
         return params
-    
+
     async def connect(self) -> None:
         """Snowflakeに接続"""
         connection_params = self._get_connection_params()
         self.connection = snowflake.connector.connect(**connection_params)
-    
+
     async def execute_query(self, query: str) -> List[Dict[str, Any]]:
         """SQLクエリの実行"""
         if not self.connection:
             await self.connect()
-        
+
         cursor = self.connection.cursor()
         try:
             cursor.execute(query)
@@ -336,7 +337,7 @@ class SnowflakeConnection:
             return [dict(zip(columns, row)) for row in rows]
         finally:
             cursor.close()
-    
+
     async def close(self) -> None:
         """接続のクローズ"""
         if self.connection:
@@ -642,3 +643,205 @@ def test_read_only_query_returns_results():
 ✅ Done: TODOから除去
 ↩️ 次のTODOへ
 ```
+
+## 実際の開発で遭遇した問題と対応
+
+### 1. MCPサーバーAPI仕様の変更
+
+**問題**: Claude.mdで想定していた `@self.server.tool()` デコレーターが存在しなかった
+```python
+# ❌ 動作しないコード
+@self.server.tool(
+    name="query",
+    description="Execute read-only SQL queries on Snowflake"
+)
+async def query_tool(sql: str) -> List[TextContent]:
+    pass
+```
+
+**エラー**: `AttributeError: 'Server' object has no attribute 'tool'`
+
+**解決方法**: FastMCPサーバーの使用
+```python
+# ✅ 正しいコード
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("snowflake-mcp")
+
+@mcp.tool()
+async def query(sql: str) -> List[Dict[str, Any]]:
+    """Execute read-only SQL queries on Snowflake."""
+    pass
+```
+
+### 2. 非同期テストの実行エラー
+
+**問題**: pytestで非同期テストが実行できない
+```
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework
+```
+
+**解決方法**: anyioを使用したテストパターン
+```python
+# ✅ 正しいテストパターン
+def test_execute_query_connects_if_not_connected(self) -> None:
+    async def run_test():
+        return await connection.execute_query("SELECT 1")
+
+    result = anyio.run(run_test)
+    assert result == expected_results
+```
+
+### 3. サーバー起動時のasyncioループ競合
+
+**問題**: サーバー起動時に発生したエラー
+```
+RuntimeError: Already running asyncio in this thread
+```
+
+**原因**: `asyncio.run()`内で更にFastMCPが`anyio.run()`を呼び出すことによる競合
+
+**解決方法**: 同期的なサーバー起動
+```python
+# ❌ 問題のあるコード
+async def main():
+    server = SnowflakeMCPServer()
+    await server.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+# ✅ 修正後のコード  
+def main():
+    server = SnowflakeMCPServer()
+    server.run()
+
+if __name__ == "__main__":
+    main()
+```
+
+### 4. MCPレスポンス形式の不一致
+
+**問題**: 当初想定していた`TextContent`形式が不要だった
+```python
+# ❌ 想定していた形式
+return [TextContent(
+    type="text",
+    text=f"Query executed successfully. Results: {results}"
+)]
+
+# ✅ 実際に必要な形式
+return results  # List[Dict[str, Any]]を直接返す
+```
+
+**影響**: テストコードも併せて修正が必要
+```python
+# ❌ 修正前のテスト
+assert len(result) == 1
+assert isinstance(result[0], TextContent)
+
+# ✅ 修正後のテスト  
+assert result == mock_results
+```
+
+### 5. エラーハンドリング方式の変更
+
+**問題**: MCPツールでのエラーハンドリング方法
+```python
+# ❌ 当初の想定（TextContentでエラー返却）
+return [TextContent(
+    type="text", 
+    text="Error: Only read-only queries are allowed"
+)]
+
+# ✅ 実際の方法（例外発生）
+if not self._is_read_only_query(sql):
+    raise ValueError("Only read-only queries are allowed")
+```
+
+### 6. Lintingエラーへの対応
+
+**問題**: 未使用importの警告
+```
+F401 [*] `pytest` imported but unused
+F401 [*] `unittest.mock.Mock` imported but unused
+```
+
+**解決方法**: 自動修正の活用
+```bash
+# 自動修正
+uv run --frozen ruff check . --fix
+
+# フォーマット適用
+uv run --frozen ruff format .
+```
+
+## TDD実践での学び
+
+### 1. API仕様の確認の重要性
+
+**学び**: 外部ライブラリのAPIは事前に詳細確認が必要
+- MCPライブラリのバージョンによる違い
+- FastMCPとStandardMCPの違い
+- ドキュメントと実装の乖離
+
+### 2. テストパターンの標準化
+
+**学び**: 非同期テストのパターンを早期に確立
+```python
+# 統一されたテストパターン
+def test_async_method(self) -> None:
+    async def run_test():
+        # テストロジック
+        pass
+    result = anyio.run(run_test)
+    # アサーション
+```
+
+### 3. エラーファーストアプローチ
+
+**学び**: 期待するエラーから実装することで設計が明確になる
+```python
+# エラーケースのテストから開始
+def test_query_tool_rejects_write_queries(self) -> None:
+    async def run_test():
+        try:
+            await server._query_tool("INSERT INTO test VALUES (1)")
+            assert False, "Expected ValueError"
+        except ValueError as e:
+            assert "Only read-only queries are allowed" in str(e)
+            return True
+```
+
+## 改良ポイント
+
+### 1. 設定ファイルの分離
+- 環境変数の管理方法の改善
+- 設定ファイルによる管理の検討
+
+### 2. ログ機能の追加
+- デバッグ用ログの実装
+- エラートラッキングの強化
+
+### 3. 接続プールの実装
+- パフォーマンス向上のための接続再利用
+- 接続数制限の実装
+
+## 参考資料
+
+- [MCP Protocol Documentation](https://docs.anthropic.com/claude/docs/mcp)
+- [Snowflake Python Connector](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector)
+- [Python 開発ガイドライン](./python_guideline.md)
+- [FastMCP GitHub Repository](https://github.com/modelcontextprotocol/python-sdk)
+
+## 注意事項
+
+- 添付のPython開発ガイドラインに厳密に従う
+- uvのみを使用し、pipは使用しない
+- 全てのコードに型ヒントを追加
+- パブリックAPIには必ずdocstringを記述
+- テストは`uv run --frozen pytest`で実行
+- 非同期テストにはanyioを使用
+- MCPライブラリのバージョンとAPI仕様を事前に確認する
+- FastMCPを使用する場合は同期的なサーバー起動を行う
