@@ -5,6 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cryptography>=45.0.5",
     "mcp>=1.10.1",
     "snowflake-connector-python>=3.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.9.0",
+    "pre-commit>=4.2.0",
+    "pyright>=1.1.402",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "ruff>=0.12.2",
 ]
