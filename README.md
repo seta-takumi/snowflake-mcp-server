@@ -90,9 +90,15 @@ Claude Codeの設定ファイル（通常 `~/.claude.json`）を編集：
 {
   "mcpServers": {
     "snowflake-mcp": {
-      "command": "uv",
-      "args": ["run", "--frozen", "python", "-m", "snowflake_mcp"],
-      "cwd": "/path/to/snowflake-mcp-server",
+      "command": "path/to/uv",
+      "args": [
+        "--directory",
+        "path/to/snowflake-mcp-server",
+        "run",
+        "python",
+        "-m",
+        "snowflake_mcp"
+      ],
       "env": {
         "SNOWFLAKE_ACCOUNT": "your-account",
         "SNOWFLAKE_USER": "your-username",
@@ -106,6 +112,8 @@ Claude Codeの設定ファイル（通常 `~/.claude.json`）を編集：
   }
 }
 ```
+
+**注意**: uvのパスを確認するには `which uv` を実行してください。
 
 ### 2. Claude Codeの再起動
 
