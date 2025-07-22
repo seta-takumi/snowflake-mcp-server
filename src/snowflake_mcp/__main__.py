@@ -55,5 +55,9 @@ async def get_schema() -> List[Dict[str, Any]]:
     except Exception as e:
         raise RuntimeError(f"Failed to get schema: {str(e)}")
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the Snowflake MCP Server."""
     mcp.run()
+
+if __name__ == "__main__":
+    main()
