@@ -17,16 +17,40 @@ SnowflakeデータベースとClaude（MCP対応クライアント）を安全�
 
 ## 🔧 インストール
 
-### 1. リポジトリのクローン
+### 方法1: グローバルインストール（推奨）
 
 ```bash
+# 1. リポジトリのクローン
 git clone <repository-url>
 cd snowflake-mcp-server
+
+# 2. グローバルインストール
+uv tool install .
+
+# 3. インストール確認
+snowflake-mcp-server --help
 ```
 
-### 2. 依存関係のインストール
+### 方法2: パッケージとしてインストール
 
 ```bash
+# 1. リポジトリのクローンとビルド
+git clone <repository-url>
+cd snowflake-mcp-server
+uv build
+
+# 2. 他のプロジェクトでインストール
+uv add ./dist/snowflake_mcp_server-0.1.0-py3-none-any.whl
+```
+
+### 方法3: 開発用セットアップ
+
+```bash
+# リポジトリのクローン
+git clone <repository-url>
+cd snowflake-mcp-server
+
+# 依存関係のインストール
 uv sync
 ```
 
@@ -86,11 +110,34 @@ export SNOWFLAKE_OAUTH_TOKEN="your-oauth-token"
 
 Claude Codeの設定ファイル（通常 `~/.claude.json`）を編集：
 
+#### グローバルインストール後の設定
+
 ```json
 {
   "mcpServers": {
     "snowflake-mcp": {
-      "command": "uv",
+      "command": "snowflake-mcp-server",
+      "env": {
+        "SNOWFLAKE_ACCOUNT": "your-account",
+        "SNOWFLAKE_USER": "your-username",
+        "SNOWFLAKE_DATABASE": "your-database",
+        "SNOWFLAKE_SCHEMA": "your-schema",
+        "SNOWFLAKE_WAREHOUSE": "your-warehouse",
+        "SNOWFLAKE_ROLE": "your-role",
+        "SNOWFLAKE_PRIVATE_KEY_PATH": "/path/to/rsa_key.p8"
+      }
+    }
+  }
+}
+```
+
+#### 開発用セットアップの設定
+
+```json
+{
+  "mcpServers": {
+    "snowflake-mcp": {
+      "command": "/path/to/uv",
       "args": ["run", "--frozen", "python", "-m", "snowflake_mcp"],
       "cwd": "/path/to/snowflake-mcp-server",
       "env": {
@@ -106,6 +153,8 @@ Claude Codeの設定ファイル（通常 `~/.claude.json`）を編集：
   }
 }
 ```
+
+**注意**: uvのパスを確認するには `which uv` を実行してください。
 
 ### 2. Claude Codeの再起動
 
