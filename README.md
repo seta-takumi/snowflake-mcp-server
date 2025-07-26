@@ -61,7 +61,38 @@ ALTER USER your_username SET RSA_PUBLIC_KEY='<公開鍵の内容（-----BEGIN/EN
 
 ## ⚙️ 設定
 
-### 環境変数の設定
+### connections.toml ファイル（推奨）
+
+Snowflake Python Connectorのネイティブサポートを活用した設定方法です。
+
+#### 1. 設定ファイルの作成
+
+以下の場所にファイルを作成：
+- `~/.snowflake/connections.toml`
+- `~/.config/snowflake/connections.toml` (Linux)
+- `$SNOWFLAKE_HOME/connections.toml` (環境変数で指定)
+
+#### 2. 設定内容
+
+```toml
+[myconnection]
+account = "your-account"
+user = "your-username"  
+database = "your-database"
+schema = "your-schema"
+warehouse = "your-warehouse"
+role = "your-role"
+
+# キーペア認証の場合
+private_key_file = "/path/to/rsa_key.p8"
+private_key_file_pwd = ""  # パスフレーズがある場合のみ
+
+# または OAuth認証の場合
+# token = "your-oauth-token"
+# authenticator = "oauth"
+```
+
+### 環境変数での設定（従来方法）
 
 ```bash
 # 基本設定
@@ -80,11 +111,60 @@ export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=""  # パスフレーズがある場合�
 export SNOWFLAKE_OAUTH_TOKEN="your-oauth-token"
 ```
 
+## 🚀 起動方法
+
+### connections.tomlを使用する場合（推奨）
+
+```bash
+# connections.tomlの接続設定を使用
+uv run python -m snowflake_mcp --connection-name myconnection
+
+# 短縮形
+uv run python -m snowflake_mcp -c myconnection
+```
+
+### 環境変数を使用する場合
+
+```bash
+# 環境変数から接続設定を読み込み
+uv run python -m snowflake_mcp
+```
+
+### ヘルプの表示
+
+```bash
+uv run python -m snowflake_mcp --help
+```
+
 ## 🖥️ Claude Codeでの利用
 
 ### 1. 設定ファイルの編集
 
 Claude Codeの設定ファイル（通常 `~/.claude.json`）を編集：
+
+#### connections.tomlを使用する場合（推奨）
+
+```json
+{
+  "mcpServers": {
+    "snowflake-mcp": {
+      "command": "path/to/uv",
+      "args": [
+        "--directory",
+        "path/to/snowflake-mcp-server",
+        "run",
+        "python",
+        "-m",
+        "snowflake_mcp",
+        "--connection-name",
+        "myconnection"
+      ]
+    }
+  }
+}
+```
+
+#### 環境変数を使用する場合（従来方法）
 
 ```json
 {
