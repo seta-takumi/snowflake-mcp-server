@@ -61,13 +61,25 @@ class SnowflakeConnection:
 
     async def connect(self) -> None:
         """Connect to Snowflake database."""
-        if self.connection_name:
-            # Use Snowflake connector's native connections.toml support
-            self.connection = snowflake.connector.connect(connection_name=self.connection_name)
-        else:
-            # Use environment variables
-            connection_params = self._get_connection_params()
-            self.connection = snowflake.connector.connect(**connection_params)
+        try:
+            if self.connection_name:
+                # Use Snowflake connector's native connections.toml support
+                self.connection = snowflake.connector.connect(connection_name=self.connection_name)
+            else:
+                # Use environment variables
+                connection_params = self._get_connection_params()
+                self.connection = snowflake.connector.connect(**connection_params)
+        except Exception as e:
+            if self.connection_name:
+                raise RuntimeError(
+                    f"Failed to connect using connections.toml with connection name '{self.connection_name}'. "
+                    f"Original error: {e}"
+                ) from e
+            else:
+                raise RuntimeError(
+                    "Failed to connect using environment variable-based connection parameters. "
+                    f"Original error: {e}"
+                ) from e
 
     async def execute_query(self, query: str) -> List[Dict[str, Any]]:
         """Execute a SQL query and return results.
