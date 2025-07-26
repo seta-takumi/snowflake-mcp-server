@@ -10,9 +10,14 @@ from cryptography.hazmat.primitives import serialization
 class SnowflakeConnection:
     """Manages Snowflake database connections."""
 
-    def __init__(self) -> None:
-        """Initialize connection manager."""
+    def __init__(self, connection_name: Optional[str] = None) -> None:
+        """Initialize connection manager.
+        
+        Args:
+            connection_name: Name of connection in connections.toml file
+        """
         self.connection: Optional[snowflake.connector.SnowflakeConnection] = None
+        self.connection_name = connection_name
 
     def _get_connection_params(self) -> Dict[str, Any]:
         """Get connection parameters from environment variables.
@@ -56,8 +61,13 @@ class SnowflakeConnection:
 
     async def connect(self) -> None:
         """Connect to Snowflake database."""
-        connection_params = self._get_connection_params()
-        self.connection = snowflake.connector.connect(**connection_params)
+        if self.connection_name:
+            # Use Snowflake connector's native connections.toml support
+            self.connection = snowflake.connector.connect(connection_name=self.connection_name)
+        else:
+            # Use environment variables
+            connection_params = self._get_connection_params()
+            self.connection = snowflake.connector.connect(**connection_params)
 
     async def execute_query(self, query: str) -> List[Dict[str, Any]]:
         """Execute a SQL query and return results.
