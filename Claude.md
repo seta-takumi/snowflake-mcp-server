@@ -30,10 +30,45 @@ uv add requests  # OAuth フロー用
 uv add --dev pytest pytest-asyncio anyio ruff pyright pre-commit
 ```
 
-### 2. セキュアな認証設定
+### 2. 認証設定
 
-#### キーペア認証（推奨）
+#### 設定方法（優先順位）
 
+1. **connections.toml ファイル（推奨）**
+2. **環境変数**
+
+#### connections.toml ファイルを使用した設定（推奨）
+
+Snowflake Python Connectorのネイティブサポートを活用します。
+
+**ファイル場所:**
+- `~/.snowflake/connections.toml`
+- `~/.config/snowflake/connections.toml` (Linux)
+- `$SNOWFLAKE_HOME/connections.toml` (環境変数で指定)
+
+**設定例:**
+```toml
+[myconnection]
+account = "your-account"
+user = "your-username"
+database = "your-database"
+schema = "your-schema"
+warehouse = "your-warehouse"
+role = "your-role"
+
+# パスワード認証の場合
+password = "your-password"
+
+# キーペア認証の場合
+private_key_file = "/path/to/rsa_key.p8"
+private_key_file_pwd = ""  # パスフレーズがある場合
+
+# OAuth認証の場合
+token = "your-oauth-token"
+authenticator = "oauth"
+```
+
+**キーペア認証用の鍵生成:**
 ```bash
 # 秘密鍵を生成
 openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
@@ -46,7 +81,7 @@ openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
 ALTER USER your_username SET RSA_PUBLIC_KEY='<公開鍵の内容>';
 ```
 
-環境変数の設定：
+#### 環境変数を使用した設定
 
 ```bash
 # 基本設定
@@ -63,15 +98,6 @@ export SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=""  # パスフレーズがある場合
 
 # または、OAuth認証
 export SNOWFLAKE_OAUTH_TOKEN="your-oauth-token"
-```
-
-#### OAuth認証（オプション）
-
-```bash
-# OAuth用設定
-export SNOWFLAKE_OAUTH_CLIENT_ID="your-client-id"
-export SNOWFLAKE_OAUTH_CLIENT_SECRET="your-client-secret"
-export SNOWFLAKE_OAUTH_REDIRECT_URI="http://localhost:8080/callback"
 ```
 
 ## 主要機能
@@ -349,18 +375,41 @@ class SnowflakeConnection:
 
 ### 1. サーバーの起動
 
+#### connections.tomlを使用する場合（推奨）
+
 ```bash
-uv run python -m snowflake_mcp.server
+# connections.tomlの接続設定を使用
+uv run python -m snowflake_mcp --connection-name myconnection
+
+# 短縮形
+uv run python -m snowflake_mcp -c myconnection
 ```
 
-### 2. Claude Codeでの使用
+#### 環境変数を使用する場合
+
+```bash
+# 環境変数から接続設定を読み込み
+uv run python -m snowflake_mcp
+```
+
+### 2. コマンドライン引数
+
+```bash
+# ヘルプの表示
+uv run python -m snowflake_mcp --help
+
+# 使用可能なオプション:
+#   --connection-name, -c  connections.tomlの接続名を指定
+```
+
+### 3. Claude Codeでの使用
 
 ```bash
 # MCP設定でサーバーを追加
 claude-code --mcp-server snowflake-mcp-server
 ```
 
-### 3. 利用可能なツール
+### 4. 利用可能なツール
 
 - `query`: SQLクエリの実行
 - `list_tables`: テーブル一覧の取得
