@@ -230,4 +230,4 @@ class TestCreateSnowflakeMcpServer:
         expected_tools = {"query", "list_tables", "describe_table", "get_schema"}
         actual_tools = {tool.name for tool in tools}
         
-        assert expected_tools == actual_tools, f"Expected tools {expected_tools}, got {actual_tools}"
+        assert expected_tools == actual_tools
