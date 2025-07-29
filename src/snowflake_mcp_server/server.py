@@ -2,8 +2,8 @@
 
 from typing import List, Dict, Any
 from mcp.server.fastmcp import FastMCP
-from snowflake_mcp.connection import SnowflakeConnection
-from snowflake_mcp.query_validator import QueryValidator
+from snowflake_mcp_server.connection import SnowflakeConnection
+from snowflake_mcp_server.query_validator import QueryValidator
 
 
 def create_snowflake_mcp_server(connection_name: str = None) -> FastMCP:
