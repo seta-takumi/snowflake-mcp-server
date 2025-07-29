@@ -8,7 +8,7 @@ Claude Codeを使用してSnowflake MCP (Model Context Protocol) サーバーを
 
 ## 開発環境
 
-- Python 3.11+
+- Python 3.12+
 - uv (パッケージマネージャー)
 - MCP SDK
 - Snowflake Connector for Python
@@ -18,17 +18,17 @@ Claude Codeを使用してSnowflake MCP (Model Context Protocol) サーバーを
 ### 1. 依存関係のインストール
 
 ```bash
-# 基本依存関係
-uv add mcp
-uv add snowflake-connector-python
-uv add cryptography  # キーペア認証用
+# プロジェクトの依存関係をインストール
+uv sync
 
-# OAuth認証を使用する場合
-uv add requests  # OAuth フロー用
+# または開発モードでインストール
+uv add --editable .
 
-# 開発用依存関係
-uv add --dev pytest pytest-asyncio anyio ruff pyright pre-commit
+# ツールとしてグローバルインストール
+uv tool install .
 ```
+
+**注意**: 個別の依存関係追加は`pyproject.toml`で管理されているため、通常は`uv sync`のみで十分です。
 
 ### 2. 認証設定
 
@@ -242,133 +242,49 @@ uv run --frozen ruff check . --fix
 uv run --frozen pyright
 ```
 
-## 実装例
+## パッケージ化とインストール
 
-### 基本的なMCPサーバー構造
+このプロジェクトは`uv build`によってパッケージ化でき、CLIツールとして配布できます。
 
-```python
-from typing import Any, Dict, List, Optional
-import asyncio
-import os
-import re
-from mcp.server import Server
-from mcp.types import Tool, TextContent
-from .connection import SnowflakeConnection
+### パッケージのビルド
 
-class SnowflakeMCPServer:
-    def __init__(self):
-        self.connection = SnowflakeConnection()
-        self.server = Server("snowflake-mcp")
-        self._setup_tools()
+```bash
+# パッケージをビルド
+uv build
 
-    def _is_read_only_query(self, query: str) -> bool:
-        """クエリが読み取り専用かチェック"""
-        query_upper = query.strip().upper()
-        allowed_statements = ['SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN']
-        return any(query_upper.startswith(stmt) for stmt in allowed_statements)
-
-    def _setup_tools(self) -> None:
-        """MCPツールの設定"""
-        @self.server.tool(
-            name="query",
-            description="Execute read-only SQL queries on Snowflake"
-        )
-        async def query(sql: str) -> List[TextContent]:
-            if not self._is_read_only_query(sql):
-                return [TextContent(
-                    type="text",
-                    text="Error: Only read-only queries are allowed"
-                )]
-
-            try:
-                results = await self.connection.execute_query(sql)
-                return [TextContent(
-                    type="text",
-                    text=f"Query executed successfully. Results: {results}"
-                )]
-            except Exception as e:
-                return [TextContent(
-                    type="text",
-                    text=f"Query execution failed: {str(e)}"
-                )]
-
-    async def run(self) -> None:
-        """サーバーの実行"""
-        await self.server.run()
+# ビルドされたwheelファイルを確認
+ls dist/
 ```
 
-### 接続管理クラス
+### インストール方法
 
-```python
-import os
-from typing import Any, Dict, List, Optional
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.serialization import pkcs8
-import snowflake.connector
+```bash
+# ツールとしてグローバルインストール（推奨）
+uv tool install .
 
-class SnowflakeConnection:
-    def __init__(self):
-        self.connection: Optional[snowflake.connector.SnowflakeConnection] = None
+# 開発モードでインストール
+uv add --editable .
 
-    def _get_connection_params(self) -> Dict[str, Any]:
-        """セキュアな接続パラメータの取得"""
-        params = {
-            'account': os.getenv('SNOWFLAKE_ACCOUNT'),
-            'user': os.getenv('SNOWFLAKE_USER'),
-            'database': os.getenv('SNOWFLAKE_DATABASE'),
-            'schema': os.getenv('SNOWFLAKE_SCHEMA'),
-            'warehouse': os.getenv('SNOWFLAKE_WAREHOUSE'),
-            'role': os.getenv('SNOWFLAKE_ROLE'),
-        }
+# 通常インストール
+uv add .
 
-        # キーペア認証
-        private_key_path = os.getenv('SNOWFLAKE_PRIVATE_KEY_PATH')
-        if private_key_path:
-            with open(private_key_path, 'rb') as key_file:
-                private_key = serialization.load_pem_private_key(
-                    key_file.read(),
-                    password=os.getenv('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '').encode() or None,
-                )
+# GitHubから直接インストール
+uv tool install git+https://github.com/seta-takumi/snowflake-mcp-server.git
+```
 
-            pkb = private_key.private_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            )
-            params['private_key'] = pkb
+### CLIコマンドとして使用
 
-        # OAuth認証（代替）
-        oauth_token = os.getenv('SNOWFLAKE_OAUTH_TOKEN')
-        if oauth_token:
-            params['token'] = oauth_token
-            params['authenticator'] = 'oauth'
+インストール後は`snowflake-mcp-server`コマンドが使用可能になります：
 
-        return params
+```bash
+# インストール後の基本実行
+snowflake-mcp-server
 
-    async def connect(self) -> None:
-        """Snowflakeに接続"""
-        connection_params = self._get_connection_params()
-        self.connection = snowflake.connector.connect(**connection_params)
+# 接続名を指定
+snowflake-mcp-server --connection-name myconnection
 
-    async def execute_query(self, query: str) -> List[Dict[str, Any]]:
-        """SQLクエリの実行"""
-        if not self.connection:
-            await self.connect()
-
-        cursor = self.connection.cursor()
-        try:
-            cursor.execute(query)
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
-        finally:
-            cursor.close()
-
-    async def close(self) -> None:
-        """接続のクローズ"""
-        if self.connection:
-            self.connection.close()
-            self.connection = None
+# ヘルプ表示
+snowflake-mcp-server --help
 ```
 
 ## 使用方法
@@ -379,24 +295,33 @@ class SnowflakeConnection:
 
 ```bash
 # connections.tomlの接続設定を使用
-uv run python -m snowflake_mcp --connection-name myconnection
+uv run python -m snowflake_mcp_server --connection-name myconnection
 
 # 短縮形
-uv run python -m snowflake_mcp -c myconnection
+uv run python -m snowflake_mcp_server -c myconnection
+
+# パッケージインストール後
+uvx snowflake-mcp-server --connection-name myconnection
 ```
 
 #### 環境変数を使用する場合
 
 ```bash
 # 環境変数から接続設定を読み込み
-uv run python -m snowflake_mcp
+uv run python -m snowflake_mcp_server
+
+# パッケージインストール後
+uvx snowflake-mcp-server
 ```
 
 ### 2. コマンドライン引数
 
 ```bash
 # ヘルプの表示
-uv run python -m snowflake_mcp --help
+uv run python -m snowflake_mcp_server --help
+
+# パッケージインストール後
+uvx snowflake-mcp-server --help
 
 # 使用可能なオプション:
 #   --connection-name, -c  connections.tomlの接続名を指定
@@ -404,9 +329,23 @@ uv run python -m snowflake_mcp --help
 
 ### 3. Claude Codeでの使用
 
-```bash
-# MCP設定でサーバーを追加
-claude-code --mcp-server snowflake-mcp-server
+#### 設定ファイルの編集
+用途によってそれぞれのファイルで設定を追加します。
+- システム全体での設定： `~/.claude.json`
+- プロジェクトごとの設定：プロジェクトディレクトリ内で `.mcp.json`
+#### uv toolでインストール後（推奨）
+
+```json
+"mcpServers": {
+  "snowflake-mcp-server": {
+    "command": "uvx",
+    "args": [
+      "snowflake-mcp-server",
+      "--connection-name",
+      "myconnection"
+    ]
+  }
+}
 ```
 
 ### 4. 利用可能なツール
@@ -538,7 +477,7 @@ uv run --frozen pytest tests/ -v
 
 ```bash
 # カバレッジ測定
-uv run --frozen pytest --cov=src/snowflake_mcp --cov-report=term-missing
+uv run --frozen pytest --cov=src/snowflake_mcp_server --cov-report=term-missing
 
 # 高速実行（統合テスト除外）
 uv run --frozen pytest -m "not integration" -v
@@ -715,7 +654,7 @@ async def query_tool(sql: str) -> List[TextContent]:
 # ✅ 正しいコード
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("snowflake-mcp")
+mcp = FastMCP("snowflake-mcp-server")
 
 @mcp.tool()
 async def query(sql: str) -> List[Dict[str, Any]]:

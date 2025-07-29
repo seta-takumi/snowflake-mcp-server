@@ -16,18 +16,14 @@ SnowflakeデータベースとClaude（MCP対応クライアント）を安全�
 - Snowflakeアカウントと適切な権限
 
 ## 🔧 インストール
-
-### 1. リポジトリのクローン
-
 ```bash
-git clone <repository-url>
+# GitHubから直接インストール
+uv tool install git+https://github.com/seta-takumi/snowflake-mcp-server.git
+
+# ローカルからインストール
+git clone https://github.com/seta-takumi/snowflake-mcp-server.git
 cd snowflake-mcp-server
-```
-
-### 2. 依存関係のインストール
-
-```bash
-uv sync
+uv tool install .
 ```
 
 ## 🔐 認証設定
@@ -77,7 +73,7 @@ Snowflake Python Connectorのネイティブサポートを活用した設定方
 ```toml
 [myconnection]
 account = "your-account"
-user = "your-username"  
+user = "your-username"
 database = "your-database"
 schema = "your-schema"
 warehouse = "your-warehouse"
@@ -113,82 +109,91 @@ export SNOWFLAKE_OAUTH_TOKEN="your-oauth-token"
 
 ## 🚀 起動方法
 
-### connections.tomlを使用する場合（推奨）
+### uv toolでインストール後
 
 ```bash
 # connections.tomlの接続設定を使用
-uv run python -m snowflake_mcp --connection-name myconnection
+uvx snowflake-mcp-server --connection-name myconnection
 
 # 短縮形
-uv run python -m snowflake_mcp -c myconnection
+uvx snowflake-mcp-server -c myconnection
+
+# 環境変数を使用する場合
+uvx snowflake-mcp-server
+
+# ヘルプの表示
+uvx snowflake-mcp-server --help
 ```
 
-### 環境変数を使用する場合
+### 開発環境での実行
 
 ```bash
-# 環境変数から接続設定を読み込み
-uv run python -m snowflake_mcp
-```
+# connections.tomlの接続設定を使用
+uv run python -m snowflake_mcp_server --connection-name myconnection
 
-### ヘルプの表示
-
-```bash
-uv run python -m snowflake_mcp --help
+# 環境変数を使用する場合
+uv run python -m snowflake_mcp_server
 ```
 
 ## 🖥️ Claude Codeでの利用
 
 ### 1. 設定ファイルの編集
+用途によってそれぞれのファイルで設定を追加します。
+- システム全体での設定： `~/.claude.json`
+- プロジェクトごとの設定：プロジェクトディレクトリ内で `.mcp.json`
 
-Claude Codeの設定ファイル（通常 `~/.claude.json`）を編集：
-
-#### connections.tomlを使用する場合（推奨）
+#### uv toolでインストール後（推奨）
 
 ```json
-{
-  "mcpServers": {
-    "snowflake-mcp": {
-      "command": "path/to/uv",
-      "args": [
-        "--directory",
-        "path/to/snowflake-mcp-server",
-        "run",
-        "python",
-        "-m",
-        "snowflake_mcp",
-        "--connection-name",
-        "myconnection"
-      ]
+"mcpServers": {
+  "snowflake-mcp-server": {
+    "command": "uvx",
+    "args": [
+      "snowflake-mcp-server",
+      "--connection-name",
+      "myconnection"
+    ]
+  }
+}
+```
+
+#### 環境変数を使用する場合
+```json
+"mcpServers": {
+  "snowflake-mcp-server": {
+    "command": "uvx",
+    "args": [
+      "snowflake-mcp-server"
+    ],
+    "env": {
+      "SNOWFLAKE_ACCOUNT": "your-account",
+      "SNOWFLAKE_USER": "your-username",
+      "SNOWFLAKE_DATABASE": "your-database",
+      "SNOWFLAKE_SCHEMA": "your-schema",
+      "SNOWFLAKE_WAREHOUSE": "your-warehouse",
+      "SNOWFLAKE_ROLE": "your-role",
+      "SNOWFLAKE_PRIVATE_KEY_PATH": "/path/to/rsa_key.p8"
     }
   }
 }
 ```
 
-#### 環境変数を使用する場合（従来方法）
+#### 開発環境での設定
 
 ```json
-{
-  "mcpServers": {
-    "snowflake-mcp": {
-      "command": "path/to/uv",
-      "args": [
-        "--directory",
-        "path/to/snowflake-mcp-server",
-        "run",
-        "python",
-        "-m",
-        "snowflake_mcp"
-      ],
-      "env": {
-        "SNOWFLAKE_ACCOUNT": "your-account",
-        "SNOWFLAKE_USER": "your-username",
-        "SNOWFLAKE_DATABASE": "your-database",
-        "SNOWFLAKE_SCHEMA": "your-schema",
-        "SNOWFLAKE_WAREHOUSE": "your-warehouse",
-        "SNOWFLAKE_ROLE": "your-role",
-        "SNOWFLAKE_PRIVATE_KEY_PATH": "/path/to/rsa_key.p8"
-      }
-    }
+"mcpServers": {
+  "snowflake-mcp": {
+    "command": "path/to/uv",
+    "args": [
+      "--directory",
+      "/path/to/snowflake-mcp-server",
+      "run",
+      "python",
+      "-m",
+      "snowflake_mcp_server",
+      "--connection-name",
+      "myconnection"
+    ]
   }
 }
 ```
@@ -283,6 +288,7 @@ SELECT * FROM sales ORDER BY amount DESC LIMIT 10
 - [Model Context Protocol (MCP) 公式ドキュメント](https://modelcontextprotocol.io/)
 - [Snowflake公式ドキュメント](https://docs.snowflake.com/)
 - [Claude Code ドキュメント](https://docs.anthropic.com/claude/docs/claude-code)
+- [uv パッケージマネージャー](https://docs.astral.sh/uv/)
 
 ## 📄 ライセンス
 
