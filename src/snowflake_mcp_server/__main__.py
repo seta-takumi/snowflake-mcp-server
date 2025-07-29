@@ -1,7 +1,7 @@
 """Main entry point for Snowflake MCP Server."""
 
 import argparse
-from snowflake_mcp.server import create_snowflake_mcp_server
+from snowflake_mcp_server.server import create_snowflake_mcp_server
 
 def main() -> None:
     """Main entry point with command line argument parsing."""
