@@ -8,7 +8,7 @@
 
 ```
 snowflake-mcp-server/
-├── src/snowflake_mcp/
+├── src/snowflake_mcp_server/
 │   ├── __init__.py          # パッケージ初期化
 │   ├── __main__.py          # エントリーポイント（FastMCP直接利用）
 │   ├── server.py            # MCPサーバー実装（クラスベース）
@@ -71,7 +71,7 @@ uv run --frozen pytest tests/test_query_validator.py -v
 uv run --frozen pytest tests/test_query_validator.py::TestQueryValidator::test_select_query_is_read_only -v
 
 # カバレッジ付きテスト
-uv run --frozen pytest --cov=src/snowflake_mcp --cov-report=term-missing
+uv run --frozen pytest --cov=src/snowflake_mcp_server --cov-report=term-missing
 
 # 失敗時停止
 uv run --frozen pytest -x
