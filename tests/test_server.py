@@ -3,7 +3,7 @@
 import pytest
 import anyio
 from unittest.mock import AsyncMock, Mock, patch
-from snowflake_mcp.server import create_snowflake_mcp_server
+from snowflake_mcp_server.server import create_snowflake_mcp_server
 
 
 class TestCreateSnowflakeMcpServer:
@@ -25,8 +25,8 @@ class TestCreateSnowflakeMcpServer:
         
         assert server is not None
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_initializes_components(self, mock_validator_class, mock_connection_class) -> None:
         """Test that server properly initializes connection and validator."""
         mock_connection = Mock()
@@ -40,8 +40,8 @@ class TestCreateSnowflakeMcpServer:
         mock_connection_class.assert_called_once_with(connection_name="test")
         mock_validator_class.assert_called_once()
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_query_tool_success(self, mock_validator_class, mock_connection_class) -> None:
         """Test successful query execution through the tool."""
         # Setup mocks
@@ -72,8 +72,8 @@ class TestCreateSnowflakeMcpServer:
         mock_validator.is_read_only.assert_called_once_with("SELECT * FROM test_table")
         mock_connection.execute_query.assert_called_once_with("SELECT * FROM test_table")
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_query_tool_rejects_write_queries(self, mock_validator_class, mock_connection_class) -> None:
         """Test that query tool rejects write queries."""
         # Setup mocks
@@ -102,8 +102,8 @@ class TestCreateSnowflakeMcpServer:
         mock_validator.is_read_only.assert_called_once_with("INSERT INTO test VALUES (1)")
         mock_connection.execute_query.assert_not_called()
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_query_tool_handles_connection_error(self, mock_validator_class, mock_connection_class) -> None:
         """Test that query tool handles connection errors properly."""
         # Setup mocks
@@ -133,8 +133,8 @@ class TestCreateSnowflakeMcpServer:
         result = anyio.run(run_test)
         assert result is True
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_list_tables_tool(self, mock_validator_class, mock_connection_class) -> None:
         """Test list_tables tool functionality."""
         # Setup mocks
@@ -161,8 +161,8 @@ class TestCreateSnowflakeMcpServer:
         assert result is not None
         mock_connection.execute_query.assert_called_once_with("SHOW TABLES")
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_describe_table_tool(self, mock_validator_class, mock_connection_class) -> None:
         """Test describe_table tool functionality."""
         # Setup mocks
@@ -189,8 +189,8 @@ class TestCreateSnowflakeMcpServer:
         assert result is not None
         mock_connection.execute_query.assert_called_once_with("DESCRIBE TABLE test_table")
 
-    @patch('snowflake_mcp.server.SnowflakeConnection')
-    @patch('snowflake_mcp.server.QueryValidator')
+    @patch('snowflake_mcp_server.server.SnowflakeConnection')
+    @patch('snowflake_mcp_server.server.QueryValidator')
     def test_get_schema_tool(self, mock_validator_class, mock_connection_class) -> None:
         """Test get_schema tool functionality."""
         # Setup mocks

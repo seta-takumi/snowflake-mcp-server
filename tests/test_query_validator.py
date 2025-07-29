@@ -1,6 +1,6 @@
 """Test query validator functionality."""
 
-from snowflake_mcp.query_validator import QueryValidator
+from snowflake_mcp_server.query_validator import QueryValidator
 
 
 class TestQueryValidator:

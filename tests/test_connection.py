@@ -3,7 +3,7 @@
 import os
 from unittest.mock import Mock, patch, mock_open
 import anyio
-from snowflake_mcp.connection import SnowflakeConnection
+from snowflake_mcp_server.connection import SnowflakeConnection
 
 
 class TestSnowflakeConnection:
@@ -29,7 +29,7 @@ class TestSnowflakeConnection:
         },
     )
     @patch("builtins.open", new_callable=mock_open, read_data=b"fake-key-data")
-    @patch("snowflake_mcp.connection.serialization.load_pem_private_key")
+    @patch("snowflake_mcp_server.connection.serialization.load_pem_private_key")
     def test_get_connection_params_with_keypair(
         self, mock_load_key: Mock, mock_file: Mock
     ) -> None:
@@ -78,7 +78,7 @@ class TestSnowflakeConnection:
         assert params["authenticator"] == "oauth"
         assert "private_key" not in params
 
-    @patch("snowflake_mcp.connection.snowflake.connector.connect")
+    @patch("snowflake_mcp_server.connection.snowflake.connector.connect")
     @patch.object(SnowflakeConnection, "_get_connection_params")
     def test_connect_creates_connection(
         self, mock_get_params: Mock, mock_connect: Mock
@@ -98,7 +98,7 @@ class TestSnowflakeConnection:
         assert connection.connection == mock_snowflake_conn
         mock_connect.assert_called_once_with(account="test-account")
 
-    @patch("snowflake_mcp.connection.snowflake.connector.connect")
+    @patch("snowflake_mcp_server.connection.snowflake.connector.connect")
     @patch.object(SnowflakeConnection, "_get_connection_params")
     def test_execute_query_connects_if_not_connected(
         self, mock_get_params: Mock, mock_connect: Mock
@@ -187,7 +187,7 @@ class TestSnowflakeConnection:
         assert connection.connection is None
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"fake-key-data")
-    @patch("snowflake_mcp.connection.serialization.load_pem_private_key")
+    @patch("snowflake_mcp_server.connection.serialization.load_pem_private_key")
     def test_private_key_loading_without_passphrase(
         self, mock_load_key: Mock, mock_file: Mock
     ) -> None:
@@ -215,7 +215,7 @@ class TestSnowflakeConnection:
             assert params["private_key"] == b"private-key-bytes"
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"fake-key-data")
-    @patch("snowflake_mcp.connection.serialization.load_pem_private_key")
+    @patch("snowflake_mcp_server.connection.serialization.load_pem_private_key")
     def test_private_key_loading_with_passphrase(
         self, mock_load_key: Mock, mock_file: Mock
     ) -> None:
