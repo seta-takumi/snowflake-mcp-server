@@ -1,68 +1,109 @@
-"""MCP server configuration and tools for Snowflake."""
+"""MCP サーバ (関数型スタイル寄り) 構成モジュール。
 
-from typing import List, Dict, Any
+従来の create_snowflake_mcp_server API を維持しつつ、
+ツール登録ロジックを関数ベースに分離してテスタビリティと拡張性を向上。"""
+
+from __future__ import annotations
+
+from typing import Awaitable, Callable, Dict, List, Any
+
 from mcp.server.fastmcp import FastMCP
-from snowflake_mcp_server.connection import SnowflakeConnection
-from snowflake_mcp_server.query_validator import QueryValidator
+from snowflake_mcp_server.connection import (
+    open_connection,
+    fetch_query,
+    close_connection,
+)
+from snowflake_mcp_server.query_validator import is_read_only_query
+import snowflake.connector
+
+# 型エイリアス
+AsyncTool = Callable[..., Awaitable[List[Dict[str, Any]]]]
+ConnectionFactory = Callable[[], snowflake.connector.SnowflakeConnection]
 
 
-def create_snowflake_mcp_server(connection_name: str = None) -> FastMCP:
-    """Create and configure the Snowflake MCP server.
-    
-    Args:
-        connection_name: Optional connection name from connections.toml
-        
-    Returns:
-        Configured FastMCP server instance
-    """
-    # Initialize components
-    connection = SnowflakeConnection(connection_name=connection_name)
-    query_validator = QueryValidator()
-    
-    def _is_read_only_query(query: str) -> bool:
-        """Check if a query is read-only using the query validator."""
-        return query_validator.is_read_only(query)
-    
-    # Create the FastMCP server instance
-    mcp = FastMCP("snowflake-mcp")
-    
-    @mcp.tool()
-    async def query(sql: str) -> List[Dict[str, Any]]:
-        """Execute read-only SQL queries on Snowflake."""
-        if not _is_read_only_query(sql):
-            raise ValueError("Only read-only queries are allowed")
+async def _execute_with_connection(
+    connection_factory: ConnectionFactory, query: str
+) -> List[Dict[str, Any]]:
+    """接続を開いてクエリを実行し、確実にクローズする。"""
+    conn = connection_factory()
+    try:
+        return fetch_query(conn, query)
+    finally:
+        close_connection(conn)
 
+
+def _wrap_errors(
+    message: str, coro_factory: Callable[[], Awaitable[List[Dict[str, Any]]]]
+) -> AsyncTool:
+    """共通エラーハンドリングラッパ (関数型合成用)。"""
+
+    async def _inner() -> List[Dict[str, Any]]:
         try:
-            results = await connection.execute_query(sql)
-            return results
-        except Exception as e:
-            raise RuntimeError(f"Query execution failed: {str(e)}")
+            return await coro_factory()
+        except Exception as e:  # メッセージを統一して再ラップ
+            raise RuntimeError(f"{message}: {e}") from e
+
+    return _inner  # type: ignore[return-value]
+
+
+def register_tools(
+    mcp: FastMCP,
+    *,
+    connection_factory: ConnectionFactory,
+    is_read_only: Callable[[str], bool],
+) -> None:
+    """ツールを FastMCP インスタンスへ登録 (副作用のみ)。
+
+    引数を全て注入することでテスト時に任意のモックへ差し替え可能。
+    """
+
+    @mcp.tool()
+    async def query(sql: str) -> List[Dict[str, Any]]:  # noqa: D401 (簡潔で良い)
+        if not is_read_only(sql):
+            raise ValueError("Only read-only queries are allowed")
+        return await _wrap_errors(
+            "Query execution failed",
+            lambda: _execute_with_connection(connection_factory, sql),
+        )()
 
     @mcp.tool()
     async def list_tables() -> List[Dict[str, Any]]:
-        """List all tables in the current schema."""
-        try:
-            results = await connection.execute_query("SHOW TABLES")
-            return results
-        except Exception as e:
-            raise RuntimeError(f"Failed to list tables: {str(e)}")
+        return await _wrap_errors(
+            "Failed to list tables",
+            lambda: _execute_with_connection(connection_factory, "SHOW TABLES"),
+        )()
 
     @mcp.tool()
     async def describe_table(table_name: str) -> List[Dict[str, Any]]:
-        """Describe the structure of a table."""
-        try:
-            results = await connection.execute_query(f"DESCRIBE TABLE {table_name}")
-            return results
-        except Exception as e:
-            raise RuntimeError(f"Failed to describe table: {str(e)}")
+        return await _wrap_errors(
+            "Failed to describe table",
+            lambda: _execute_with_connection(
+                connection_factory, f"DESCRIBE TABLE {table_name}"
+            ),
+        )()
 
     @mcp.tool()
     async def get_schema() -> List[Dict[str, Any]]:
-        """Get schema information."""
-        try:
-            results = await connection.execute_query("DESCRIBE SCHEMA")
-            return results
-        except Exception as e:
-            raise RuntimeError(f"Failed to get schema: {str(e)}")
-    
+        return await _wrap_errors(
+            "Failed to get schema",
+            lambda: _execute_with_connection(connection_factory, "DESCRIBE SCHEMA"),
+        )()
+
+
+def create_snowflake_mcp_server(connection_name: str | None = None) -> FastMCP:
+    """Snowflake MCP サーバを生成 (関数型スタイル)。"""
+
+    def connection_factory() -> snowflake.connector.SnowflakeConnection:
+        return open_connection(connection_name=connection_name)
+
+    mcp = FastMCP("snowflake-mcp")
+    register_tools(
+        mcp, connection_factory=connection_factory, is_read_only=is_read_only_query
+    )
     return mcp
+
+
+__all__ = [
+    "create_snowflake_mcp_server",
+    "register_tools",
+]
