@@ -1,142 +1,80 @@
 """Test query validator functionality."""
 
-from snowflake_mcp_server.query_validator import QueryValidator
+import pytest
+from snowflake_mcp_server.query_validator import (
+    is_read_only_query,
+    normalize_query,
+    READ_ONLY_STATEMENTS,
+)
 
 
-class TestQueryValidator:
-    """Test cases for query validation."""
+# 旧クラスベースのテストは関数型 API へ統合済みのため削除
 
-    def test_select_query_is_read_only(self) -> None:
-        """Test that SELECT queries are recognized as read-only."""
-        validator = QueryValidator()
-        query = "SELECT * FROM users"
 
-        result = validator.is_read_only(query)
+# --------------------------------------------------------------------------------------
+# 関数型 API のテスト (新規推奨)
+# --------------------------------------------------------------------------------------
 
-        assert result is True
 
-    def test_insert_query_is_not_read_only(self) -> None:
-        """Test that INSERT queries are rejected as write operations."""
-        validator = QueryValidator()
-        query = "INSERT INTO users (name) VALUES ('John')"
+class TestFunctionalQueryValidation:
+    """関数型バリデーション API のテスト。純関数のため副作用なしでシンプル。"""
 
-        result = validator.is_read_only(query)
+    def test_normalize_query_basic(self) -> None:
+        """クエリの正規化テスト。"""
+        assert normalize_query("  select * from table  ") == "SELECT * FROM TABLE"
+        assert normalize_query("") == ""
+        assert normalize_query(None) == ""
+        assert normalize_query("   \t\n  ") == ""
 
-        assert result is False
+    def test_is_read_only_query_select_variants(self) -> None:
+        """SELECT系クエリの読み取り専用判定。"""
+        assert is_read_only_query("SELECT * FROM users") is True
+        assert is_read_only_query("  select id from table  ") is True
+        assert is_read_only_query("SeLeCt COUNT(*) FROM orders") is True
 
-    def test_empty_query_is_not_read_only(self) -> None:
-        """Test that empty queries return False for read-only check."""
-        validator = QueryValidator()
-        query = ""
+    def test_is_read_only_query_show_variants(self) -> None:
+        """SHOW系クエリの読み取り専用判定。"""
+        assert is_read_only_query("SHOW TABLES") is True
+        assert is_read_only_query("show databases") is True
+        assert is_read_only_query("  SHOW COLUMNS FROM table  ") is True
 
-        result = validator.is_read_only(query)
+    def test_is_read_only_query_describe_variants(self) -> None:
+        """DESCRIBE/DESC系クエリの読み取り専用判定。"""
+        assert is_read_only_query("DESCRIBE TABLE users") is True
+        assert is_read_only_query("DESC table_name") is True
+        assert is_read_only_query("describe schema") is True
 
-        assert result is False
+    def test_is_read_only_query_explain(self) -> None:
+        """EXPLAIN クエリの読み取り専用判定。"""
+        assert is_read_only_query("EXPLAIN SELECT * FROM users") is True
+        assert is_read_only_query("explain plan for select 1") is True
 
-    def test_whitespace_only_query_is_not_read_only(self) -> None:
-        """Test that whitespace-only queries return False for read-only check."""
-        validator = QueryValidator()
-        query = "   \t\n  "
+    def test_is_read_only_query_write_operations(self) -> None:
+        """書き込み系クエリの判定。"""
+        assert is_read_only_query("INSERT INTO users VALUES (1)") is False
+        assert is_read_only_query("UPDATE users SET name='test'") is False
+        assert is_read_only_query("DELETE FROM users") is False
+        assert is_read_only_query("CREATE TABLE test (id INT)") is False
+        assert is_read_only_query("DROP TABLE test") is False
+        assert is_read_only_query("ALTER TABLE users ADD COLUMN age INT") is False
 
-        result = validator.is_read_only(query)
+    def test_is_read_only_query_edge_cases(self) -> None:
+        """エッジケースの判定。"""
+        assert is_read_only_query("") is False
+        assert is_read_only_query(None) is False
+        assert is_read_only_query("   \t\n  ") is False
+        assert is_read_only_query("INVALID_STATEMENT") is False
 
-        assert result is False
+    def test_is_read_only_query_custom_prefixes(self) -> None:
+        """カスタム接頭辞での判定テスト。"""
+        custom_prefixes = ["CUSTOM", "TEST"]
+        assert is_read_only_query("CUSTOM COMMAND", custom_prefixes) is True
+        assert is_read_only_query("TEST QUERY", custom_prefixes) is True
+        assert is_read_only_query("SELECT * FROM table", custom_prefixes) is False
 
-    def test_show_query_is_read_only(self) -> None:
-        """Test that SHOW queries are recognized as read-only."""
-        validator = QueryValidator()
-        query = "SHOW TABLES"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
-
-    def test_describe_query_is_read_only(self) -> None:
-        """Test that DESCRIBE queries are recognized as read-only."""
-        validator = QueryValidator()
-        query = "DESCRIBE TABLE users"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
-
-    def test_desc_query_is_read_only(self) -> None:
-        """Test that DESC queries are recognized as read-only."""
-        validator = QueryValidator()
-        query = "DESC TABLE users"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
-
-    def test_explain_query_is_read_only(self) -> None:
-        """Test that EXPLAIN queries are recognized as read-only."""
-        validator = QueryValidator()
-        query = "EXPLAIN SELECT * FROM users"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
-
-    def test_update_query_is_not_read_only(self) -> None:
-        """Test that UPDATE queries are rejected as write operations."""
-        validator = QueryValidator()
-        query = "UPDATE users SET name = 'Jane' WHERE id = 1"
-
-        result = validator.is_read_only(query)
-
-        assert result is False
-
-    def test_delete_query_is_not_read_only(self) -> None:
-        """Test that DELETE queries are rejected as write operations."""
-        validator = QueryValidator()
-        query = "DELETE FROM users WHERE id = 1"
-
-        result = validator.is_read_only(query)
-
-        assert result is False
-
-    def test_create_query_is_not_read_only(self) -> None:
-        """Test that CREATE queries are rejected as write operations."""
-        validator = QueryValidator()
-        query = "CREATE TABLE test (id INT)"
-
-        result = validator.is_read_only(query)
-
-        assert result is False
-
-    def test_drop_query_is_not_read_only(self) -> None:
-        """Test that DROP queries are rejected as write operations."""
-        validator = QueryValidator()
-        query = "DROP TABLE test"
-
-        result = validator.is_read_only(query)
-
-        assert result is False
-
-    def test_case_insensitive_select_query(self) -> None:
-        """Test that case-insensitive SELECT queries are recognized as read-only."""
-        validator = QueryValidator()
-        query = "select * from users"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
-
-    def test_query_with_leading_whitespace(self) -> None:
-        """Test that queries with leading whitespace are handled correctly."""
-        validator = QueryValidator()
-        query = "   SELECT * FROM users"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
-
-    def test_mixed_case_query(self) -> None:
-        """Test that mixed case queries are handled correctly."""
-        validator = QueryValidator()
-        query = "SeLeCt * FrOm users"
-
-        result = validator.is_read_only(query)
-
-        assert result is True
+    def test_read_only_statements_constant(self) -> None:
+        """READ_ONLY_STATEMENTS 定数の内容確認。"""
+        expected = {"SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN"}
+        assert set(READ_ONLY_STATEMENTS) == expected
+        # Sequence なので変更不可能性もテスト
+        assert isinstance(READ_ONLY_STATEMENTS, tuple)
