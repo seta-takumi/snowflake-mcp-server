@@ -112,7 +112,12 @@ def close_connection(conn: Optional[snowflake.connector.SnowflakeConnection]) ->
 # --------------------------------------------------------------------------------------
 
 class SnowflakeConnection:
-    """従来インターフェイス互換の薄いラッパ。内部で関数を利用。"""
+    """従来インターフェイス互換の薄いラッパ。内部で関数を利用。
+    
+    .. deprecated:: 
+        新しいコードでは関数型API（open_connection, fetch_query, close_connection）
+        の直接利用を推奨します。このクラスは後方互換性のためのみ提供されています。
+    """
 
     def __init__(self, connection_name: Optional[str] = None) -> None:
         self.connection_name = connection_name
