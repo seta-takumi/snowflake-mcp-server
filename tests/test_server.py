@@ -1,6 +1,5 @@
 """Tests for the Snowflake MCP server module."""
 
-import pytest
 import anyio
 from unittest.mock import AsyncMock, Mock, patch
 from mcp.server.fastmcp import FastMCP
@@ -27,36 +26,32 @@ class TestCreateSnowflakeMcpServer:
         assert server is not None
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
+    @patch("snowflake_mcp_server.server.is_read_only_query")
     def test_initializes_components(
-        self, mock_validator_class, mock_connection_class
+        self, mock_is_read_only, mock_connection_class
     ) -> None:
-        """Test that server properly initializes connection and validator."""
+        """Test that server properly initializes connection and is_read_only function."""
         mock_connection = Mock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
-        server = create_snowflake_mcp_server(connection_name="test")
+        create_snowflake_mcp_server(connection_name="test")
 
-        # Verify components were initialized
+        # Verify connection was initialized
         mock_connection_class.assert_called_once_with(connection_name="test")
-        mock_validator_class.assert_called_once()
+        # is_read_only_query is now passed as a function reference, no instantiation needed
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
+    @patch("snowflake_mcp_server.server.is_read_only_query")
     def test_query_tool_success(
-        self, mock_validator_class, mock_connection_class
+        self, mock_is_read_only, mock_connection_class
     ) -> None:
         """Test successful query execution through the tool."""
         # Setup mocks
         mock_connection = AsyncMock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
-        # Mock validator to return True for read-only
-        mock_validator.is_read_only.return_value = True
+        # Mock is_read_only_query to return True
+        mock_is_read_only.return_value = True
 
         # Mock connection to return test results
         expected_results = [{"column1": "value1", "column2": "value2"}]
@@ -76,25 +71,23 @@ class TestCreateSnowflakeMcpServer:
 
         # Verify results - check that the call was successful and returned data
         assert result is not None
-        mock_validator.is_read_only.assert_called_once_with("SELECT * FROM test_table")
+        mock_is_read_only.assert_called_once_with("SELECT * FROM test_table")
         mock_connection.execute_query.assert_called_once_with(
             "SELECT * FROM test_table"
         )
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
+    @patch("snowflake_mcp_server.server.is_read_only_query")
     def test_query_tool_rejects_write_queries(
-        self, mock_validator_class, mock_connection_class
+        self, mock_is_read_only, mock_connection_class
     ) -> None:
         """Test that query tool rejects write queries."""
         # Setup mocks
         mock_connection = AsyncMock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
-        # Mock validator to return False for write query
-        mock_validator.is_read_only.return_value = False
+        # Mock is_read_only_query to return False for write query
+        mock_is_read_only.return_value = False
 
         # Create server
         server = create_snowflake_mcp_server()
@@ -110,25 +103,23 @@ class TestCreateSnowflakeMcpServer:
 
         result = anyio.run(run_test)
         assert result is True
-        mock_validator.is_read_only.assert_called_once_with(
+        mock_is_read_only.assert_called_once_with(
             "INSERT INTO test VALUES (1)"
         )
         mock_connection.execute_query.assert_not_called()
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
+    @patch("snowflake_mcp_server.server.is_read_only_query")
     def test_query_tool_handles_connection_error(
-        self, mock_validator_class, mock_connection_class
+        self, mock_is_read_only, mock_connection_class
     ) -> None:
         """Test that query tool handles connection errors properly."""
         # Setup mocks
         mock_connection = AsyncMock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
-        # Mock validator to return True
-        mock_validator.is_read_only.return_value = True
+        # Mock is_read_only_query to return True
+        mock_is_read_only.return_value = True
 
         # Mock connection to raise an exception
         mock_connection.execute_query.side_effect = Exception("Connection failed")
@@ -149,16 +140,13 @@ class TestCreateSnowflakeMcpServer:
         assert result is True
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
     def test_list_tables_tool(
-        self, mock_validator_class, mock_connection_class
+        self, mock_connection_class
     ) -> None:
         """Test list_tables tool functionality."""
         # Setup mocks
         mock_connection = AsyncMock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
         # Mock connection to return table list
         expected_tables = [{"name": "table1"}, {"name": "table2"}]
@@ -179,16 +167,13 @@ class TestCreateSnowflakeMcpServer:
         mock_connection.execute_query.assert_called_once_with("SHOW TABLES")
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
     def test_describe_table_tool(
-        self, mock_validator_class, mock_connection_class
+        self, mock_connection_class
     ) -> None:
         """Test describe_table tool functionality."""
         # Setup mocks
         mock_connection = AsyncMock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
         # Mock connection to return table description
         expected_description = [{"column": "id", "type": "NUMBER"}]
@@ -213,14 +198,11 @@ class TestCreateSnowflakeMcpServer:
         )
 
     @patch("snowflake_mcp_server.server.SnowflakeConnection")
-    @patch("snowflake_mcp_server.server.QueryValidator")
-    def test_get_schema_tool(self, mock_validator_class, mock_connection_class) -> None:
+    def test_get_schema_tool(self, mock_connection_class) -> None:
         """Test get_schema tool functionality."""
         # Setup mocks
         mock_connection = AsyncMock()
-        mock_validator = Mock()
         mock_connection_class.return_value = mock_connection
-        mock_validator_class.return_value = mock_validator
 
         # Mock connection to return schema info
         expected_schema = [{"schema_name": "PUBLIC"}]
@@ -317,13 +299,12 @@ class TestFunctionalServerAPI:
 
         # 関数型 API での組み立て
         from snowflake_mcp_server.connection import SnowflakeConnection
-        from snowflake_mcp_server.query_validator import QueryValidator
+        from snowflake_mcp_server.query_validator import is_read_only_query
 
         connection = SnowflakeConnection()
-        validator = QueryValidator()
         server2 = FastMCP("snowflake-mcp")
         register_tools(
-            server2, connection=connection, is_read_only=validator.is_read_only
+            server2, connection=connection, is_read_only=is_read_only_query
         )
 
         # 両者のツール構成が同じことを確認

@@ -1,6 +1,5 @@
 """Test query validator functionality."""
 
-import pytest
 from snowflake_mcp_server.query_validator import (
     is_read_only_query,
     normalize_query,

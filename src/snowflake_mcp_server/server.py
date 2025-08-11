@@ -9,7 +9,7 @@ from typing import Awaitable, Callable, Dict, List, Any
 
 from mcp.server.fastmcp import FastMCP
 from snowflake_mcp_server.connection import SnowflakeConnection
-from snowflake_mcp_server.query_validator import QueryValidator
+from snowflake_mcp_server.query_validator import is_read_only_query
 
 # 型エイリアス
 AsyncTool = Callable[..., Awaitable[List[Dict[str, Any]]]]
@@ -60,11 +60,10 @@ def register_tools(
 
 
 def create_snowflake_mcp_server(connection_name: str | None = None) -> FastMCP:
-    """Snowflake MCP サーバを生成 (後方互換 API)。"""
+    """Snowflake MCP サーバを生成 (関数型スタイル)。"""
     connection = SnowflakeConnection(connection_name=connection_name)
-    validator = QueryValidator()  # テストで patch されるため保持
     mcp = FastMCP("snowflake-mcp")
-    register_tools(mcp, connection=connection, is_read_only=validator.is_read_only)
+    register_tools(mcp, connection=connection, is_read_only=is_read_only_query)
     return mcp
 
 
