@@ -25,7 +25,7 @@ def get_connection_params(env: EnvMapping | None = None) -> Dict[str, Any]:
 
     KeyPair 認証, OAuth を必要に応じて追加。
     可能な限り副作用を小さくするため、ファイル読み込み以外は純粋。
-    
+
     Returns:
         dict: snowflake.connector.connect(**params) にそのまま渡せるパラメータ。
     """
@@ -111,10 +111,11 @@ def close_connection(conn: Optional[snowflake.connector.SnowflakeConnection]) ->
 # 最小ラッパクラス (後方互換用) - 内部は上記関数へ委譲
 # --------------------------------------------------------------------------------------
 
+
 class SnowflakeConnection:
     """従来インターフェイス互換の薄いラッパ。内部で関数を利用。
-    
-    .. deprecated:: 
+
+    .. deprecated::
         新しいコードでは関数型API（open_connection, fetch_query, close_connection）
         の直接利用を推奨します。このクラスは後方互換性のためのみ提供されています。
     """
@@ -153,6 +154,7 @@ class SnowflakeConnection:
     async def close(self) -> None:
         close_connection(self.connection)
         self.connection = None
+
 
 # --------------------------------------------------------------------------------------
 # 関数型利用者向け公開 API (推奨)
