@@ -23,7 +23,9 @@ def normalize_query(query: str | None) -> str:
     return query.strip().upper()
 
 
-def is_read_only_query(query: str | None, read_only_prefixes: Iterable[str] = READ_ONLY_STATEMENTS) -> bool:
+def is_read_only_query(
+    query: str | None, read_only_prefixes: Iterable[str] = READ_ONLY_STATEMENTS
+) -> bool:
     """クエリが読み取り専用か判定する純関数。
 
     Args:
