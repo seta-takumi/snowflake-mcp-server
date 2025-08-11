@@ -1,109 +1,162 @@
-"""Connection management for Snowflake MCP Server."""
+"""Snowflake 接続管理 (関数型スタイル中心)。
+
+従来の OOP クラス `SnowflakeConnection` は互換性のため残しつつ、
+実際のロジックは純粋/準純粋なトップレベル関数へ委譲する。
+テスト互換性を維持しながら関数型スタイルへ移行しやすくするための段階的リファクタ。
+"""
+
+from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import snowflake.connector
 from cryptography.hazmat.primitives import serialization
 
+# --------------------------------------------------------------------------------------
+# 純関数 / ヘルパ
+# --------------------------------------------------------------------------------------
+
+EnvMapping = Mapping[str, str | None]
+
+
+def get_connection_params(env: EnvMapping | None = None) -> Dict[str, Any]:
+    """環境変数 (デフォルト: os.environ) から Snowflake 接続パラメータ dict を構築する。
+
+    KeyPair 認証, OAuth を必要に応じて追加。
+    可能な限り副作用を小さくするため、ファイル読み込み以外は純粋。
+    
+    Returns:
+        dict: snowflake.connector.connect(**params) にそのまま渡せるパラメータ。
+    """
+    env = env or os.environ  # 明示渡しを許容しテスト容易性向上
+
+    params: Dict[str, Any] = {
+        "account": env.get("SNOWFLAKE_ACCOUNT"),
+        "user": env.get("SNOWFLAKE_USER"),
+        "database": env.get("SNOWFLAKE_DATABASE"),
+        "schema": env.get("SNOWFLAKE_SCHEMA"),
+        "warehouse": env.get("SNOWFLAKE_WAREHOUSE"),
+        "role": env.get("SNOWFLAKE_ROLE"),
+    }
+
+    private_key_path = env.get("SNOWFLAKE_PRIVATE_KEY_PATH")
+    if private_key_path:
+        passphrase = env.get("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE")
+        with open(private_key_path, "rb") as key_file:  # IO (副作用)
+            private_key = serialization.load_pem_private_key(
+                key_file.read(), password=passphrase.encode() if passphrase else None
+            )
+        params["private_key"] = private_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
+    oauth_token = env.get("SNOWFLAKE_OAUTH_TOKEN")
+    if oauth_token:
+        params["token"] = oauth_token
+        params["authenticator"] = "oauth"
+
+    return params
+
+
+def open_connection(
+    connection_name: str | None = None,
+    env: EnvMapping | None = None,
+) -> snowflake.connector.SnowflakeConnection:
+    """接続を生成して返す (副作用: Snowflake へ接続)。
+
+    Args:
+        connection_name: connections.toml のエントリ名 (省略可)
+        env: 環境変数マッピング (テスト注入用)
+    """
+    try:
+        if connection_name:
+            return snowflake.connector.connect(connection_name=connection_name)
+        return snowflake.connector.connect(**get_connection_params(env=env))
+    except Exception as e:  # 例外を文脈付きで再ラップ
+        ctx = (
+            f"connections.toml connection name '{connection_name}'"
+            if connection_name
+            else "environment variable-based parameters"
+        )
+        raise RuntimeError(f"Failed to connect using {ctx}. Original error: {e}") from e
+
+
+def fetch_query(
+    conn: snowflake.connector.SnowflakeConnection,
+    query: str,
+) -> List[Dict[str, Any]]:
+    """クエリを実行して結果を List[Dict] で返す副作用関数。
+    カーソルの開閉は内部で管理し例外安全を確保。
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute(query)
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        return [dict(zip(columns, row)) for row in rows]
+    finally:
+        cursor.close()
+
+
+def close_connection(conn: Optional[snowflake.connector.SnowflakeConnection]) -> None:
+    """接続が存在すればクローズ (冪等)。"""
+    if conn:
+        conn.close()
+
+
+# --------------------------------------------------------------------------------------
+# 最小ラッパクラス (後方互換用) - 内部は上記関数へ委譲
+# --------------------------------------------------------------------------------------
 
 class SnowflakeConnection:
-    """Manages Snowflake database connections."""
+    """従来インターフェイス互換の薄いラッパ。内部で関数を利用。"""
 
     def __init__(self, connection_name: Optional[str] = None) -> None:
-        """Initialize connection manager.
-        
-        Args:
-            connection_name: Name of connection in connections.toml file
-        """
-        self.connection: Optional[snowflake.connector.SnowflakeConnection] = None
         self.connection_name = connection_name
+        self.connection: Optional[snowflake.connector.SnowflakeConnection] = None
 
-    def _get_connection_params(self) -> Dict[str, Any]:
-        """Get connection parameters from environment variables.
+    # 内部利用 (後方互換のため残す)
+    def _get_connection_params(self) -> Dict[str, Any]:  # type: ignore[override]
+        return get_connection_params()
 
-        Returns:
-            Dict[str, Any]: Connection parameters for Snowflake
-        """
-        params = {
-            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-            "user": os.getenv("SNOWFLAKE_USER"),
-            "database": os.getenv("SNOWFLAKE_DATABASE"),
-            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
-            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
-            "role": os.getenv("SNOWFLAKE_ROLE"),
-        }
-
-        # Keypair authentication
-        private_key_path = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH")
-        if private_key_path:
-            with open(private_key_path, "rb") as key_file:
-                private_key = serialization.load_pem_private_key(
-                    key_file.read(),
-                    password=os.getenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", "").encode()
-                    or None,
-                )
-
-            pkb = private_key.private_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-            params["private_key"] = pkb
-
-        # OAuth authentication (alternative)
-        oauth_token = os.getenv("SNOWFLAKE_OAUTH_TOKEN")
-        if oauth_token:
-            params["token"] = oauth_token
-            params["authenticator"] = "oauth"
-
-        return params
-
-    async def connect(self) -> None:
-        """Connect to Snowflake database."""
-        try:
-            if self.connection_name:
-                # Use Snowflake connector's native connections.toml support
-                self.connection = snowflake.connector.connect(connection_name=self.connection_name)
-            else:
-                # Use environment variables
-                connection_params = self._get_connection_params()
-                self.connection = snowflake.connector.connect(**connection_params)
-        except Exception as e:
-            if self.connection_name:
-                raise RuntimeError(
-                    f"Failed to connect using connections.toml with connection name '{self.connection_name}'. "
-                    f"Original error: {e}"
-                ) from e
-            else:
+    async def connect(self) -> None:  # 非同期 API 互換
+        if self.connection:
+            return
+        # 後方互換: テストで _get_connection_params を patch できるよう分岐を保持
+        if self.connection_name:
+            self.connection = open_connection(self.connection_name)
+        else:
+            params = self._get_connection_params()
+            try:
+                self.connection = snowflake.connector.connect(**params)
+            except Exception as e:  # 例外メッセージを元実装に近い形で
                 raise RuntimeError(
                     "Failed to connect using environment variable-based connection parameters. "
                     f"Original error: {e}"
                 ) from e
 
     async def execute_query(self, query: str) -> List[Dict[str, Any]]:
-        """Execute a SQL query and return results.
-
-        Args:
-            query: SQL query string to execute
-
-        Returns:
-            List[Dict[str, Any]]: Query results as list of dictionaries
-        """
         if not self.connection:
             await self.connect()
-
-        cursor = self.connection.cursor()
-        try:
-            cursor.execute(query)
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
-        finally:
-            cursor.close()
+        # mypy 的に None でないことを保証
+        assert self.connection is not None
+        return fetch_query(self.connection, query)
 
     async def close(self) -> None:
-        """Close the database connection."""
-        if self.connection:
-            self.connection.close()
-            self.connection = None
+        close_connection(self.connection)
+        self.connection = None
+
+# --------------------------------------------------------------------------------------
+# 関数型利用者向け公開 API (推奨)
+# --------------------------------------------------------------------------------------
+
+__all__ = [
+    "get_connection_params",
+    "open_connection",
+    "fetch_query",
+    "close_connection",
+    "SnowflakeConnection",
+]
