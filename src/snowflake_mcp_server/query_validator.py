@@ -1,12 +1,11 @@
 """クエリバリデーション (関数型スタイル)。
 
-`is_read_only_query` という純関数を公開し、従来の `QueryValidator` クラスは
-後方互換用の薄いアダプタとして保持する。
+読み取り専用クエリの判定を行う純関数を提供する。
 """
 
 from __future__ import annotations
 
-from typing import Iterable, List, Sequence
+from typing import Iterable, Sequence
 
 READ_ONLY_STATEMENTS: Sequence[str] = (
     "SELECT",
@@ -37,19 +36,8 @@ def is_read_only_query(query: str | None, read_only_prefixes: Iterable[str] = RE
     return any(normalized.startswith(prefix) for prefix in read_only_prefixes)
 
 
-class QueryValidator:
-    """後方互換のためのラッパ。新規コードは関数を直接利用推奨。"""
-
-    def __init__(self) -> None:  # 保持 (インスタンス状態は不要)
-        self._read_only_statements: List[str] = list(READ_ONLY_STATEMENTS)
-
-    def is_read_only(self, query: str) -> bool:  # pragma: no cover (既存テストでカバー済)
-        return is_read_only_query(query, self._read_only_statements)
-
-
 __all__ = [
     "READ_ONLY_STATEMENTS",
     "normalize_query",
     "is_read_only_query",
-    "QueryValidator",
 ]
