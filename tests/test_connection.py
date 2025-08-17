@@ -153,8 +153,40 @@ class TestFunctionalConnectionAPI:
         assert params["account"] == "test-account"
         assert params["user"] == "test-user"
         assert params["database"] == "test-db"
+        assert "schema" not in params  # スキーマは任意なので含まれない
         assert "private_key" not in params
         assert "token" not in params
+
+    def test_get_connection_params_with_schema(self) -> None:
+        """スキーマが指定された場合のテスト。"""
+        env = {
+            "SNOWFLAKE_ACCOUNT": "test-account",
+            "SNOWFLAKE_USER": "test-user",
+            "SNOWFLAKE_DATABASE": "test-db",
+            "SNOWFLAKE_SCHEMA": "test-schema",
+        }
+        params = get_connection_params(env)
+
+        assert params["account"] == "test-account"
+        assert params["user"] == "test-user"
+        assert params["database"] == "test-db"
+        assert params["schema"] == "test-schema"
+
+    def test_get_connection_params_without_schema(self) -> None:
+        """スキーマが指定されていない場合のテスト。"""
+        env = {
+            "SNOWFLAKE_ACCOUNT": "test-account",
+            "SNOWFLAKE_USER": "test-user",
+            "SNOWFLAKE_DATABASE": "test-db",
+            "SNOWFLAKE_WAREHOUSE": "test-warehouse",
+        }
+        params = get_connection_params(env)
+
+        assert params["account"] == "test-account"
+        assert params["user"] == "test-user"
+        assert params["database"] == "test-db"
+        assert params["warehouse"] == "test-warehouse"
+        assert "schema" not in params  # スキーマは任意なので含まれない
 
     def test_get_connection_params_oauth(self) -> None:
         """OAuth トークン設定のテスト。"""
