@@ -161,18 +161,41 @@ class TestCreateSnowflakeMcpServer:
         mock_execute_with_connection.assert_called_once()
 
     @patch("snowflake_mcp_server.server._execute_with_connection")
-    def test_get_schema_tool(self, mock_execute_with_connection) -> None:
-        """Test get_schema tool functionality."""
-        # Mock _execute_with_connection to return schema info
-        expected_schema = [{"schema_name": "PUBLIC"}]
-        mock_execute_with_connection.return_value = expected_schema
+    def test_list_schemas_tool(self, mock_execute_with_connection) -> None:
+        """Test list_schemas tool functionality."""
+        # Mock _execute_with_connection to return schemas list
+        expected_schemas = [{"schema_name": "PUBLIC"}, {"schema_name": "PRIVATE"}]
+        mock_execute_with_connection.return_value = expected_schemas
 
         # Create server
         server = create_snowflake_mcp_server()
 
         # Test tool execution
         async def run_test():
-            result = await server.call_tool("get_schema", {})
+            result = await server.call_tool("list_schemas", {})
+            return result
+
+        result = anyio.run(run_test)
+
+        # Verify results - check that the call was successful
+        assert result is not None
+        mock_execute_with_connection.assert_called_once()
+
+    @patch("snowflake_mcp_server.server._execute_with_connection")
+    def test_describe_schema_tool(self, mock_execute_with_connection) -> None:
+        """Test describe_schema tool functionality."""
+        # Mock _execute_with_connection to return schema description
+        expected_description = [{"property": "COMMENT", "value": "Test schema"}]
+        mock_execute_with_connection.return_value = expected_description
+
+        # Create server
+        server = create_snowflake_mcp_server()
+
+        # Test tool execution
+        async def run_test():
+            result = await server.call_tool(
+                "describe_schema", {"schema_name": "PUBLIC"}
+            )
             return result
 
         result = anyio.run(run_test)
@@ -191,7 +214,13 @@ class TestCreateSnowflakeMcpServer:
 
         tools = anyio.run(get_tools)
 
-        expected_tools = {"query", "list_tables", "describe_table", "get_schema"}
+        expected_tools = {
+            "query",
+            "list_tables",
+            "describe_table",
+            "list_schemas",
+            "describe_schema",
+        }
         actual_tools = {tool.name for tool in tools}
 
         assert expected_tools == actual_tools
@@ -219,8 +248,8 @@ class TestFunctionalServerAPI:
             is_read_only=mock_is_read_only,
         )
 
-        # 4つのツールが登録されることを確認
-        assert mock_mcp.tool.call_count == 4
+        # 5つのツールが登録されることを確認
+        assert mock_mcp.tool.call_count == 5
 
     @patch("snowflake_mcp_server.server._wrap_errors")
     def test_register_tools_query_validation(self, mock_wrap_errors: Mock) -> None:
@@ -239,7 +268,7 @@ class TestFunctionalServerAPI:
 
         # query ツールが登録されていることを確認
         query_decorator_calls = [call for call in mock_mcp.tool.call_args_list]
-        assert len(query_decorator_calls) == 4  # 4つのツール
+        assert len(query_decorator_calls) == 5  # 5つのツール
 
     def test_register_tools_dependency_injection(self) -> None:
         """依存性注入の効果テスト (モック差し替え可能性)。"""
@@ -258,7 +287,7 @@ class TestFunctionalServerAPI:
         )
 
         # 正常に登録完了 (カスタムバリデータを注入できた)
-        assert mock_mcp.tool.call_count == 4
+        assert mock_mcp.tool.call_count == 5
 
     def test_functional_vs_class_equivalence(self) -> None:
         """関数型 API とクラス API の等価性テスト。"""
