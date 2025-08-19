@@ -83,10 +83,19 @@ def register_tools(
         )()
 
     @mcp.tool()
-    async def get_schema() -> List[Dict[str, Any]]:
+    async def list_schemas() -> List[Dict[str, Any]]:
         return await _wrap_errors(
-            "Failed to get schema",
-            lambda: _execute_with_connection(connection_factory, "DESCRIBE SCHEMA"),
+            "Failed to list schemas",
+            lambda: _execute_with_connection(connection_factory, "SHOW SCHEMAS"),
+        )()
+
+    @mcp.tool()
+    async def describe_schema(schema_name: str) -> List[Dict[str, Any]]:
+        return await _wrap_errors(
+            "Failed to describe schema",
+            lambda: _execute_with_connection(
+                connection_factory, f"DESCRIBE SCHEMA {schema_name}"
+            ),
         )()
 
 
