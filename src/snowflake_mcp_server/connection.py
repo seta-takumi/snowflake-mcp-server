@@ -35,10 +35,14 @@ def get_connection_params(env: EnvMapping | None = None) -> Dict[str, Any]:
         "account": env.get("SNOWFLAKE_ACCOUNT"),
         "user": env.get("SNOWFLAKE_USER"),
         "database": env.get("SNOWFLAKE_DATABASE"),
-        "schema": env.get("SNOWFLAKE_SCHEMA"),
         "warehouse": env.get("SNOWFLAKE_WAREHOUSE"),
         "role": env.get("SNOWFLAKE_ROLE"),
     }
+
+    # スキーマは任意なので、指定されている場合のみ追加
+    schema = env.get("SNOWFLAKE_SCHEMA")
+    if schema:
+        params["schema"] = schema
 
     private_key_path = env.get("SNOWFLAKE_PRIVATE_KEY_PATH")
     if private_key_path:
