@@ -318,7 +318,7 @@ class TestFunctionalServerAPI:
             is_read_only=mock_is_read_only,
         )
 
-        # 7つのツールが登録されることを確認（データベースツール追加により5→7）
+        # 7つのツールが登録されることを確認
         assert mock_mcp.tool.call_count == 7
 
     @patch("snowflake_mcp_server.server._wrap_errors")
@@ -340,7 +340,7 @@ class TestFunctionalServerAPI:
         query_decorator_calls = [call for call in mock_mcp.tool.call_args_list]
         assert (
             len(query_decorator_calls) == 7
-        )  # 7つのツール（データベースツール追加）  # 5つのツール
+        )
 
     def test_register_tools_dependency_injection(self) -> None:
         """依存性注入の効果テスト (モック差し替え可能性)。"""
@@ -359,7 +359,7 @@ class TestFunctionalServerAPI:
         )
 
         # 正常に登録完了 (カスタムバリデータを注入できた)
-        assert mock_mcp.tool.call_count == 7  # 7つのツール（データベースツール追加）
+        assert mock_mcp.tool.call_count == 7  # 7つのツール
 
     def test_functional_vs_class_equivalence(self) -> None:
         """関数型 API とクラス API の等価性テスト。"""

@@ -186,9 +186,7 @@ class TestFunctionalConnectionAPI:
         assert params["user"] == "test-user"
         assert params["database"] == "test-db"
         assert params["warehouse"] == "test-warehouse"
-        assert (
-            "schema" not in params
-        )  # スキーマは任意なので含まれない  # スキーマは任意なので含まれない
+        # スキーマは任意なので含まれない
 
     def test_get_connection_params_without_database(self) -> None:
         """データベースが指定されていない場合のテスト。"""
@@ -224,7 +222,7 @@ class TestFunctionalConnectionAPI:
         assert "database" not in params  # データベースは任意なので含まれない
         assert (
             "schema" not in params
-        )  # スキーマも任意なので含まれない  # スキーマも任意なので含まれない
+        )  # スキーマも任意なので含まれない
 
     def test_get_connection_params_without_role(self) -> None:
         """ロールが指定されていない場合のテスト（セキュリティ上注意が必要）。"""
@@ -239,11 +237,11 @@ class TestFunctionalConnectionAPI:
         assert params["account"] == "test-account"
         assert params["user"] == "test-user"
         assert params["warehouse"] == "test-warehouse"
-        assert params["role"] is None  # 指定されていないのでNone（アクセス制御に注意）
+        assert params["role"] is None  # 指定されていないのでNone
         assert "database" not in params
         assert "schema" not in params
         # roleは環境変数で指定されていないが、パラメータにはNoneで含まれる可能性がある
-        # Snowflakeコネクタの仕様に合わせて確認  # ロールも指定されていない
+        # TODO: Snowflakeコネクタの仕様に合わせて確認
 
     def test_get_connection_params_oauth(self) -> None:
         """OAuth トークン設定のテスト。"""
