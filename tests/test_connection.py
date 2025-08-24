@@ -142,7 +142,7 @@ class TestFunctionalConnectionAPI:
     """関数型 API のテスト。純関数は副作用がないためテストが簡潔。"""
 
     def test_get_connection_params_basic(self) -> None:
-        """環境変数からの基本パラメータ構築テスト。"""
+        """環境変数からの基本パラメータ構築テスト（データベース指定あり）。"""
         env = {
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_USER": "test-user",
@@ -158,7 +158,7 @@ class TestFunctionalConnectionAPI:
         assert "token" not in params
 
     def test_get_connection_params_with_schema(self) -> None:
-        """スキーマが指定された場合のテスト。"""
+        """データベースとスキーマが両方指定された場合のテスト。"""
         env = {
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_USER": "test-user",
@@ -173,7 +173,7 @@ class TestFunctionalConnectionAPI:
         assert params["schema"] == "test-schema"
 
     def test_get_connection_params_without_schema(self) -> None:
-        """スキーマが指定されていない場合のテスト。"""
+        """データベースは指定されているがスキーマが指定されていない場合のテスト。"""
         env = {
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_USER": "test-user",
@@ -186,7 +186,64 @@ class TestFunctionalConnectionAPI:
         assert params["user"] == "test-user"
         assert params["database"] == "test-db"
         assert params["warehouse"] == "test-warehouse"
-        assert "schema" not in params  # スキーマは任意なので含まれない
+        assert (
+            "schema" not in params
+        )  # スキーマは任意なので含まれない  # スキーマは任意なので含まれない
+
+    def test_get_connection_params_without_database(self) -> None:
+        """データベースが指定されていない場合のテスト。"""
+        env = {
+            "SNOWFLAKE_ACCOUNT": "test-account",
+            "SNOWFLAKE_USER": "test-user",
+            "SNOWFLAKE_WAREHOUSE": "test-warehouse",
+            "SNOWFLAKE_ROLE": "test-role",
+        }
+        params = get_connection_params(env)
+
+        assert params["account"] == "test-account"
+        assert params["user"] == "test-user"
+        assert params["warehouse"] == "test-warehouse"
+        assert params["role"] == "test-role"
+        assert "database" not in params  # データベースは任意なので含まれない
+        assert "schema" not in params  # スキーマも任意なので含まれない
+
+    def test_get_connection_params_without_database_and_schema(self) -> None:
+        """データベースとスキーマの両方が指定されていない場合のテスト。"""
+        env = {
+            "SNOWFLAKE_ACCOUNT": "test-account",
+            "SNOWFLAKE_USER": "test-user",
+            "SNOWFLAKE_WAREHOUSE": "test-warehouse",
+            "SNOWFLAKE_ROLE": "test-role",  # roleはセキュリティ上必須
+        }
+        params = get_connection_params(env)
+
+        assert params["account"] == "test-account"
+        assert params["user"] == "test-user"
+        assert params["warehouse"] == "test-warehouse"
+        assert params["role"] == "test-role"  # roleは必須パラメータ
+        assert "database" not in params  # データベースは任意なので含まれない
+        assert (
+            "schema" not in params
+        )  # スキーマも任意なので含まれない  # スキーマも任意なので含まれない
+
+    def test_get_connection_params_without_role(self) -> None:
+        """ロールが指定されていない場合のテスト（セキュリティ上注意が必要）。"""
+        env = {
+            "SNOWFLAKE_ACCOUNT": "test-account",
+            "SNOWFLAKE_USER": "test-user",
+            "SNOWFLAKE_WAREHOUSE": "test-warehouse",
+            # SNOWFLAKE_ROLE は意図的に指定しない
+        }
+        params = get_connection_params(env)
+
+        assert params["account"] == "test-account"
+        assert params["user"] == "test-user"
+        assert params["warehouse"] == "test-warehouse"
+        assert params["role"] is None  # 指定されていないのでNone（アクセス制御に注意）
+        assert "database" not in params
+        assert "schema" not in params
+        # roleは環境変数で指定されていないが、パラメータにはNoneで含まれる可能性がある
+        # Snowflakeコネクタの仕様に合わせて確認  # ロールも指定されていない
 
     def test_get_connection_params_oauth(self) -> None:
         """OAuth トークン設定のテスト。"""

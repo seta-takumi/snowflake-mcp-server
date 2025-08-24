@@ -74,10 +74,10 @@ Snowflake Python Connectorのネイティブサポートを活用した設定方
 [myconnection]
 account = "your-account"
 user = "your-username"
-database = "your-database"
-schema = "your-schema"
+# database = "your-database"  # 任意：指定しない場合はSnowflakeのデフォルトデータベースを使用
+# schema = "your-schema"      # 任意：指定しない場合はデフォルトスキーマを使用
 warehouse = "your-warehouse"
-role = "your-role"
+role = "your-role"           # 推奨：アクセス制御のため適切なロールを指定
 
 # キーペア認証の場合
 private_key_file = "/path/to/rsa_key.p8"
@@ -94,10 +94,10 @@ private_key_file_pwd = ""  # パスフレーズがある場合のみ
 # 基本設定
 export SNOWFLAKE_ACCOUNT="your-account"
 export SNOWFLAKE_USER="your-username"
-export SNOWFLAKE_DATABASE="your-database"
-export SNOWFLAKE_SCHEMA="your-schema"
+# export SNOWFLAKE_DATABASE="your-database"  # 任意：指定しない場合はデフォルトデータベース
+# export SNOWFLAKE_SCHEMA="your-schema"      # 任意：指定しない場合はデフォルトスキーマ
 export SNOWFLAKE_WAREHOUSE="your-warehouse"
-export SNOWFLAKE_ROLE="your-role"
+export SNOWFLAKE_ROLE="your-role"           # 推奨：アクセス制御のため適切なロールを指定
 
 # キーペア認証
 export SNOWFLAKE_PRIVATE_KEY_PATH="/path/to/rsa_key.p8"
@@ -255,6 +255,7 @@ SELECT * FROM sales ORDER BY amount DESC LIMIT 10
 - **SQLインジェクション対策**: パラメータ化クエリによる安全な実行
 - **認証情報の保護**: 環境変数による秘密情報の管理
 - **接続の安全性**: Snowflakeの標準セキュリティプロトコルを使用
+- **ロールベースアクセス制御**: 適切なロールを指定してデータアクセスを制限（推奨）
 
 ## 🚨 トラブルシューティング
 
