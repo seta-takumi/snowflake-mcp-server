@@ -204,6 +204,74 @@ class TestCreateSnowflakeMcpServer:
         assert result is not None
         mock_execute_with_connection.assert_called_once()
 
+    @patch("snowflake_mcp_server.server._execute_with_connection")
+    def test_list_databases_tool(self, mock_execute_with_connection) -> None:
+        """Test list_databases tool functionality."""
+        # Mock _execute_with_connection to return databases list
+        expected_databases = [
+            {
+                "database_name": "TESTDB",
+                "owner": "ACCOUNTADMIN",
+                "comment": "Test database",
+            },
+            {
+                "database_name": "ANALYTICS",
+                "owner": "DBA_ROLE",
+                "comment": "Analytics database",
+            },
+        ]
+        mock_execute_with_connection.return_value = expected_databases
+
+        # Create server
+        server = create_snowflake_mcp_server()
+
+        # Test tool execution
+        async def run_test():
+            result = await server.call_tool("list_databases", {})
+            return result
+
+        result = anyio.run(run_test)
+
+        # Verify results
+        assert result is not None
+        mock_execute_with_connection.assert_called_once()
+
+    @patch("snowflake_mcp_server.server._execute_with_connection")
+    def test_describe_database_tool(self, mock_execute_with_connection) -> None:
+        """Test describe_database tool functionality."""
+        # Mock _execute_with_connection to return database description
+        expected_description = [
+            {
+                "property": "CREATED",
+                "property_type": "String",
+                "property_value": "2024-01-01 00:00:00.000 +0000",
+                "property_default": None,
+            },
+            {
+                "property": "OWNER",
+                "property_type": "String",
+                "property_value": "ACCOUNTADMIN",
+                "property_default": None,
+            },
+        ]
+        mock_execute_with_connection.return_value = expected_description
+
+        # Create server
+        server = create_snowflake_mcp_server()
+
+        # Test tool execution
+        async def run_test():
+            result = await server.call_tool(
+                "describe_database", {"database_name": "TESTDB"}
+            )
+            return result
+
+        result = anyio.run(run_test)
+
+        # Verify results
+        assert result is not None
+        mock_execute_with_connection.assert_called_once()
+
     def test_server_has_all_expected_tools(self) -> None:
         """Test that server has all expected tools registered."""
         server = create_snowflake_mcp_server()
@@ -220,6 +288,8 @@ class TestCreateSnowflakeMcpServer:
             "describe_table",
             "list_schemas",
             "describe_schema",
+            "list_databases",
+            "describe_database",
         }
         actual_tools = {tool.name for tool in tools}
 
@@ -248,8 +318,8 @@ class TestFunctionalServerAPI:
             is_read_only=mock_is_read_only,
         )
 
-        # 5つのツールが登録されることを確認
-        assert mock_mcp.tool.call_count == 5
+        # 7つのツールが登録されることを確認
+        assert mock_mcp.tool.call_count == 7
 
     @patch("snowflake_mcp_server.server._wrap_errors")
     def test_register_tools_query_validation(self, mock_wrap_errors: Mock) -> None:
@@ -268,7 +338,9 @@ class TestFunctionalServerAPI:
 
         # query ツールが登録されていることを確認
         query_decorator_calls = [call for call in mock_mcp.tool.call_args_list]
-        assert len(query_decorator_calls) == 5  # 5つのツール
+        assert (
+            len(query_decorator_calls) == 7
+        )
 
     def test_register_tools_dependency_injection(self) -> None:
         """依存性注入の効果テスト (モック差し替え可能性)。"""
@@ -287,7 +359,7 @@ class TestFunctionalServerAPI:
         )
 
         # 正常に登録完了 (カスタムバリデータを注入できた)
-        assert mock_mcp.tool.call_count == 5
+        assert mock_mcp.tool.call_count == 7  # 7つのツール
 
     def test_functional_vs_class_equivalence(self) -> None:
         """関数型 API とクラス API の等価性テスト。"""

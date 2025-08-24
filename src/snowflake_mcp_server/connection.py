@@ -34,10 +34,14 @@ def get_connection_params(env: EnvMapping | None = None) -> Dict[str, Any]:
     params: Dict[str, Any] = {
         "account": env.get("SNOWFLAKE_ACCOUNT"),
         "user": env.get("SNOWFLAKE_USER"),
-        "database": env.get("SNOWFLAKE_DATABASE"),
         "warehouse": env.get("SNOWFLAKE_WAREHOUSE"),
-        "role": env.get("SNOWFLAKE_ROLE"),
+        "role": env.get("SNOWFLAKE_ROLE"),  # セキュリティ上必須として扱う
     }
+
+    # データベースは任意なので、指定されている場合のみ追加
+    database = env.get("SNOWFLAKE_DATABASE")
+    if database:
+        params["database"] = database
 
     # スキーマは任意なので、指定されている場合のみ追加
     schema = env.get("SNOWFLAKE_SCHEMA")
