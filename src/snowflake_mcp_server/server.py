@@ -98,6 +98,24 @@ def register_tools(
             ),
         )()
 
+    @mcp.tool()
+    async def list_databases() -> List[Dict[str, Any]]:
+        """アクセス可能なデータベースの一覧を取得する。"""
+        return await _wrap_errors(
+            "Failed to list databases",
+            lambda: _execute_with_connection(connection_factory, "SHOW DATABASES"),
+        )()
+
+    @mcp.tool()
+    async def describe_database(database_name: str) -> List[Dict[str, Any]]:
+        """指定したデータベースの詳細情報を取得する。"""
+        return await _wrap_errors(
+            "Failed to describe database",
+            lambda: _execute_with_connection(
+                connection_factory, f"DESCRIBE DATABASE {database_name}"
+            ),
+        )()
+
 
 def create_snowflake_mcp_server(connection_name: str | None = None) -> FastMCP:
     """Snowflake MCP サーバを生成 (関数型スタイル)。"""
