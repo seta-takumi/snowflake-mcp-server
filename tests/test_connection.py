@@ -147,12 +147,14 @@ class TestFunctionalConnectionAPI:
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_USER": "test-user",
             "SNOWFLAKE_DATABASE": "test-db",
+            "SNOWFLAKE_ROLE": "test-role",
         }
         params = get_connection_params(env)
 
         assert params["account"] == "test-account"
         assert params["user"] == "test-user"
         assert params["database"] == "test-db"
+        assert params["role"] == "test-role"
         assert "schema" not in params  # スキーマは任意なので含まれない
         assert "private_key" not in params
         assert "token" not in params
@@ -164,6 +166,7 @@ class TestFunctionalConnectionAPI:
             "SNOWFLAKE_USER": "test-user",
             "SNOWFLAKE_DATABASE": "test-db",
             "SNOWFLAKE_SCHEMA": "test-schema",
+            "SNOWFLAKE_ROLE": "test-role",
         }
         params = get_connection_params(env)
 
@@ -171,6 +174,7 @@ class TestFunctionalConnectionAPI:
         assert params["user"] == "test-user"
         assert params["database"] == "test-db"
         assert params["schema"] == "test-schema"
+        assert params["role"] == "test-role"
 
     def test_get_connection_params_without_schema(self) -> None:
         """データベースは指定されているがスキーマが指定されていない場合のテスト。"""
@@ -179,6 +183,7 @@ class TestFunctionalConnectionAPI:
             "SNOWFLAKE_USER": "test-user",
             "SNOWFLAKE_DATABASE": "test-db",
             "SNOWFLAKE_WAREHOUSE": "test-warehouse",
+            "SNOWFLAKE_ROLE": "test-role",
         }
         params = get_connection_params(env)
 
@@ -186,6 +191,7 @@ class TestFunctionalConnectionAPI:
         assert params["user"] == "test-user"
         assert params["database"] == "test-db"
         assert params["warehouse"] == "test-warehouse"
+        assert params["role"] == "test-role"
         # スキーマは任意なので含まれない
 
     def test_get_connection_params_without_database(self) -> None:
@@ -225,23 +231,15 @@ class TestFunctionalConnectionAPI:
         )  # スキーマも任意なので含まれない
 
     def test_get_connection_params_without_role(self) -> None:
-        """ロールが指定されていない場合のテスト（セキュリティ上注意が必要）。"""
+        """ロールが指定されていない場合は ValueError が発生することを確認。"""
         env = {
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_USER": "test-user",
             "SNOWFLAKE_WAREHOUSE": "test-warehouse",
             # SNOWFLAKE_ROLE は意図的に指定しない
         }
-        params = get_connection_params(env)
-
-        assert params["account"] == "test-account"
-        assert params["user"] == "test-user"
-        assert params["warehouse"] == "test-warehouse"
-        assert params["role"] is None  # 指定されていないのでNone
-        assert "database" not in params
-        assert "schema" not in params
-        # roleは環境変数で指定されていないが、パラメータにはNoneで含まれる可能性がある
-        # TODO: Snowflakeコネクタの仕様に合わせて確認
+        with pytest.raises(ValueError):
+            get_connection_params(env)
 
     def test_get_connection_params_oauth(self) -> None:
         """OAuth トークン設定のテスト。"""
@@ -249,11 +247,13 @@ class TestFunctionalConnectionAPI:
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_USER": "test-user",
             "SNOWFLAKE_OAUTH_TOKEN": "oauth-token-123",
+            "SNOWFLAKE_ROLE": "test-role",
         }
         params = get_connection_params(env)
 
         assert params["token"] == "oauth-token-123"
         assert params["authenticator"] == "oauth"
+        assert params["role"] == "test-role"
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"fake-pem-data")
     @patch("snowflake_mcp_server.connection.serialization.load_pem_private_key")
@@ -269,10 +269,12 @@ class TestFunctionalConnectionAPI:
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_PRIVATE_KEY_PATH": "/test/key.p8",
             "SNOWFLAKE_PRIVATE_KEY_PASSPHRASE": "secret",
+            "SNOWFLAKE_ROLE": "test-role",
         }
         params = get_connection_params(env)
 
         assert params["private_key"] == b"serialized-key"
+        assert params["role"] == "test-role"
         mock_load_key.assert_called_once_with(b"fake-pem-data", password=b"secret")
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"fake-pem-data")
@@ -288,10 +290,12 @@ class TestFunctionalConnectionAPI:
         env = {
             "SNOWFLAKE_ACCOUNT": "test-account",
             "SNOWFLAKE_PRIVATE_KEY_PATH": "/test/key.p8",
+            "SNOWFLAKE_ROLE": "test-role",
         }
         params = get_connection_params(env)
 
         assert params["private_key"] == b"serialized-key"
+        assert params["role"] == "test-role"
         mock_load_key.assert_called_once_with(b"fake-pem-data", password=None)
 
     @patch("snowflake_mcp_server.connection.snowflake.connector.connect")
@@ -311,7 +315,7 @@ class TestFunctionalConnectionAPI:
         mock_conn = Mock()
         mock_connect.return_value = mock_conn
 
-        env = {"SNOWFLAKE_ACCOUNT": "test-account", "SNOWFLAKE_USER": "test-user"}
+        env = {"SNOWFLAKE_ACCOUNT": "test-account", "SNOWFLAKE_USER": "test-user", "SNOWFLAKE_ROLE": "test-role"}
         result = open_connection(env=env)
 
         assert result == mock_conn
