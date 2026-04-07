@@ -35,8 +35,12 @@ def get_connection_params(env: EnvMapping | None = None) -> Dict[str, Any]:
         "account": env.get("SNOWFLAKE_ACCOUNT"),
         "user": env.get("SNOWFLAKE_USER"),
         "warehouse": env.get("SNOWFLAKE_WAREHOUSE"),
-        "role": env.get("SNOWFLAKE_ROLE"),  # セキュリティ上必須として扱う
+        "role": env.get("SNOWFLAKE_ROLE"),
     }
+
+    # "role" はセキュリティ上必須。未設定の場合は例外を投げる
+    if not params["role"]:
+        raise ValueError("セキュリティ上の理由により、SNOWFLAKE_ROLE 環境変数を設定する必要があります。")
 
     # データベースは任意なので、指定されている場合のみ追加
     database = env.get("SNOWFLAKE_DATABASE")
